@@ -304,6 +304,25 @@ Their new balance: {target_user['wish_balance']} {WISH_SYMBOL}
     except ValueError:
         await update.message.reply_text("Invalid input! Use numbers only.")
 
+async def refresh_shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /refreshshop command - Owner only"""
+    user_id = update.effective_user.id
+    
+    if user_id != OWNER_ID:
+        await update.message.reply_text("❌ This command is only available to the bot owner.")
+        return
+    
+    # Refresh the shop
+    new_cards = refresh_daily_shop()
+    
+    success_text = f"""
+✅ **Shop Refreshed!**
+🛒 New daily shop loaded with {len(new_cards)} fresh cards!
+🎲 Random pricing applied based on rarity
+⏰ Ready for players to discover!
+    """
+    await update.message.reply_text(success_text)
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle inline button callbacks"""
     query = update.callback_query
@@ -388,6 +407,7 @@ def main():
     application.add_handler(CommandHandler("mysell", mysell_command))
     application.add_handler(CommandHandler("history", history_command))
     application.add_handler(CommandHandler("grant", grant_command))  # Owner only command
+    application.add_handler(CommandHandler("refreshshop", refresh_shop_command))  # Owner only command
     application.add_handler(CommandHandler("cards", cards_command))
     
     # Shop-related handlers (from shop.py)

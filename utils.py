@@ -1,4 +1,5 @@
 import os
+import random
 from datetime import datetime, timedelta
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -17,6 +18,7 @@ transactions = db.transactions
 default_shop = db.default_shop
 p2p_listings = db.p2p_listings
 user_cards = db.user_cards
+master_cards = db.master_cards  # Master collection of all available waifu cards
 
 def create_user(user_id, username=None):
     """Create a new user or return existing user"""
@@ -128,23 +130,178 @@ def add_wishes_for_stars(user_id, stars_amount, conversion_rate=10):
     record_transaction(user_id, "stars_purchase", wish_amount, f"Purchased {wish_amount} wishes with {stars_amount} stars")
     return wish_amount
 
-def initialize_default_shop():
-    """Initialize default shop with sample waifu cards"""
+# Rarity pricing ranges
+RARITY_PRICING = {
+    "LIMITED EDITION": (3000, 4000),
+    "ZENITH": (1000, 2000),
+    "RETRO": (250, 300),
+    "MYTHIC": (50, 100),
+    "LEGENDARY": (25, 49),
+    "EPIC": (15, 24),
+    "RARE": (8, 14),
+    "UNCOMMON": (3, 7),
+    "COMMON": (1, 2)
+}
+
+def initialize_master_cards():
+    """Initialize master cards database with comprehensive waifu collection"""
+    # Only initialize if master cards collection is empty
+    if master_cards.count_documents({}) > 0:
+        print("Master cards already exist, skipping initialization")
+        return
+    
+    print("Initializing master cards collection...")
+    
+    # Comprehensive waifu cards database
+    master_waifu_cards = [
+        # LIMITED EDITION
+        {"card_id": "waifu_le_001", "name": "Goddess Asuna", "rarity": "LIMITED EDITION", "image_url": "", "series": "SAO"},
+        {"card_id": "waifu_le_002", "name": "Divine Rem", "rarity": "LIMITED EDITION", "image_url": "", "series": "Re:Zero"},
+        
+        # ZENITH
+        {"card_id": "waifu_z_001", "name": "Zenith Zero Two", "rarity": "ZENITH", "image_url": "", "series": "Darling in the FranXX"},
+        {"card_id": "waifu_z_002", "name": "Zenith Makima", "rarity": "ZENITH", "image_url": "", "series": "Chainsaw Man"},
+        {"card_id": "waifu_z_003", "name": "Zenith Violet", "rarity": "ZENITH", "image_url": "", "series": "Violet Evergarden"},
+        
+        # RETRO
+        {"card_id": "waifu_r_001", "name": "Retro Sailor Moon", "rarity": "RETRO", "image_url": "https://i.imgur.com/placeholder6.jpg", "series": "Sailor Moon"},
+        {"card_id": "waifu_r_002", "name": "Retro Bulma", "rarity": "RETRO", "image_url": "https://i.imgur.com/placeholder7.jpg", "series": "Dragon Ball"},
+        {"card_id": "waifu_r_003", "name": "Retro Rei Ayanami", "rarity": "RETRO", "image_url": "https://i.imgur.com/placeholder8.jpg", "series": "Evangelion"},
+        {"card_id": "waifu_r_004", "name": "Retro Akane", "rarity": "RETRO", "image_url": "https://i.imgur.com/placeholder9.jpg", "series": "Ranma 1/2"},
+        
+        # MYTHIC
+        {"card_id": "waifu_m_001", "name": "Mythic Nezuko", "rarity": "MYTHIC", "image_url": "https://i.imgur.com/placeholder10.jpg", "series": "Demon Slayer"},
+        {"card_id": "waifu_m_002", "name": "Mythic Miku", "rarity": "MYTHIC", "image_url": "https://i.imgur.com/placeholder11.jpg", "series": "Vocaloid"},
+        {"card_id": "waifu_m_003", "name": "Mythic Mikasa", "rarity": "MYTHIC", "image_url": "https://i.imgur.com/placeholder12.jpg", "series": "Attack on Titan"},
+        {"card_id": "waifu_m_004", "name": "Mythic Power", "rarity": "MYTHIC", "image_url": "https://i.imgur.com/placeholder13.jpg", "series": "Chainsaw Man"},
+        {"card_id": "waifu_m_005", "name": "Mythic Mai", "rarity": "MYTHIC", "image_url": "https://i.imgur.com/placeholder14.jpg", "series": "Bunny Girl Senpai"},
+        
+        # LEGENDARY
+        {"card_id": "waifu_leg_001", "name": "Legendary Hinata", "rarity": "LEGENDARY", "image_url": "https://i.imgur.com/placeholder15.jpg", "series": "Naruto"},
+        {"card_id": "waifu_leg_002", "name": "Legendary Tsunade", "rarity": "LEGENDARY", "image_url": "https://i.imgur.com/placeholder16.jpg", "series": "Naruto"},
+        {"card_id": "waifu_leg_003", "name": "Legendary Erza", "rarity": "LEGENDARY", "image_url": "https://i.imgur.com/placeholder17.jpg", "series": "Fairy Tail"},
+        {"card_id": "waifu_leg_004", "name": "Legendary Rias", "rarity": "LEGENDARY", "image_url": "https://i.imgur.com/placeholder18.jpg", "series": "High School DxD"},
+        {"card_id": "waifu_leg_005", "name": "Legendary Raphtalia", "rarity": "LEGENDARY", "image_url": "https://i.imgur.com/placeholder19.jpg", "series": "Shield Hero"},
+        {"card_id": "waifu_leg_006", "name": "Legendary Aqua", "rarity": "LEGENDARY", "image_url": "https://i.imgur.com/placeholder20.jpg", "series": "KonoSuba"},
+        
+        # EPIC
+        {"card_id": "waifu_e_001", "name": "Epic Sakura", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder21.jpg", "series": "Naruto"},
+        {"card_id": "waifu_e_002", "name": "Epic Ino", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder22.jpg", "series": "Naruto"},
+        {"card_id": "waifu_e_003", "name": "Epic Tifa", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder23.jpg", "series": "Final Fantasy"},
+        {"card_id": "waifu_e_004", "name": "Epic Nami", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder24.jpg", "series": "One Piece"},
+        {"card_id": "waifu_e_005", "name": "Epic Robin", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder25.jpg", "series": "One Piece"},
+        {"card_id": "waifu_e_006", "name": "Epic Levy", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder26.jpg", "series": "Fairy Tail"},
+        {"card_id": "waifu_e_007", "name": "Epic Winry", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder27.jpg", "series": "Fullmetal Alchemist"},
+        {"card_id": "waifu_e_008", "name": "Epic Ochako", "rarity": "EPIC", "image_url": "https://i.imgur.com/placeholder28.jpg", "series": "My Hero Academia"},
+        
+        # RARE
+        {"card_id": "waifu_ra_001", "name": "Rare Momo", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder29.jpg", "series": "My Hero Academia"},
+        {"card_id": "waifu_ra_002", "name": "Rare Tsuyu", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder30.jpg", "series": "My Hero Academia"},
+        {"card_id": "waifu_ra_003", "name": "Rare Marin", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder31.jpg", "series": "My Dress-Up Darling"},
+        {"card_id": "waifu_ra_004", "name": "Rare Chika", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder32.jpg", "series": "Kaguya-sama"},
+        {"card_id": "waifu_ra_005", "name": "Rare Kaguya", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder33.jpg", "series": "Kaguya-sama"},
+        {"card_id": "waifu_ra_006", "name": "Rare Shinobu", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder34.jpg", "series": "Demon Slayer"},
+        {"card_id": "waifu_ra_007", "name": "Rare Kanao", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder35.jpg", "series": "Demon Slayer"},
+        {"card_id": "waifu_ra_008", "name": "Rare Mitsuri", "rarity": "RARE", "image_url": "https://i.imgur.com/placeholder36.jpg", "series": "Demon Slayer"},
+        
+        # UNCOMMON
+        {"card_id": "waifu_u_001", "name": "Uncommon Yui", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder37.jpg", "series": "K-On!"},
+        {"card_id": "waifu_u_002", "name": "Uncommon Mio", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder38.jpg", "series": "K-On!"},
+        {"card_id": "waifu_u_003", "name": "Uncommon Ritsu", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder39.jpg", "series": "K-On!"},
+        {"card_id": "waifu_u_004", "name": "Uncommon Azusa", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder40.jpg", "series": "K-On!"},
+        {"card_id": "waifu_u_005", "name": "Uncommon Mugi", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder41.jpg", "series": "K-On!"},
+        {"card_id": "waifu_u_006", "name": "Uncommon Tohru", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder42.jpg", "series": "Dragon Maid"},
+        {"card_id": "waifu_u_007", "name": "Uncommon Kanna", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder43.jpg", "series": "Dragon Maid"},
+        {"card_id": "waifu_u_008", "name": "Uncommon Lucoa", "rarity": "UNCOMMON", "image_url": "https://i.imgur.com/placeholder44.jpg", "series": "Dragon Maid"},
+        
+        # COMMON
+        {"card_id": "waifu_c_001", "name": "Common School Girl A", "rarity": "COMMON", "image_url": "https://i.imgur.com/placeholder45.jpg", "series": "Generic"},
+        {"card_id": "waifu_c_002", "name": "Common School Girl B", "rarity": "COMMON", "image_url": "https://i.imgur.com/placeholder46.jpg", "series": "Generic"},
+        {"card_id": "waifu_c_003", "name": "Common School Girl C", "rarity": "COMMON", "image_url": "https://i.imgur.com/placeholder47.jpg", "series": "Generic"},
+        {"card_id": "waifu_c_004", "name": "Common Maid A", "rarity": "COMMON", "image_url": "https://i.imgur.com/placeholder48.jpg", "series": "Generic"},
+        {"card_id": "waifu_c_005", "name": "Common Maid B", "rarity": "COMMON", "image_url": "https://i.imgur.com/placeholder49.jpg", "series": "Generic"},
+        {"card_id": "waifu_c_006", "name": "Common Witch A", "rarity": "COMMON", "image_url": "https://i.imgur.com/placeholder50.jpg", "series": "Generic"}
+    ]
+    
+    # Insert all cards into master collection
+    for card in master_waifu_cards:
+        card["created_at"] = datetime.utcnow()
+        master_cards.insert_one(card)
+    
+    print(f"Initialized {len(master_waifu_cards)} waifu cards in master collection!")
+
+def get_random_price_for_rarity(rarity):
+    """Get a random price within the range for a given rarity"""
+    if rarity in RARITY_PRICING:
+        min_price, max_price = RARITY_PRICING[rarity]
+        return random.randint(min_price, max_price)
+    return 1  # Default fallback
+
+def refresh_daily_shop(shop_size=9):
+    """Refresh the daily shop with random cards and pricing"""
     # Clear existing shop
     default_shop.delete_many({})
     
-    # Sample waifu cards for testing
-    sample_cards = [
-        {"card_id": "waifu_001", "name": "Sakura", "rarity": "Common", "price": 5, "image_url": ""},
-        {"card_id": "waifu_002", "name": "Hinata", "rarity": "Rare", "price": 15, "image_url": ""},
-        {"card_id": "waifu_003", "name": "Tsunade", "rarity": "Epic", "price": 30, "image_url": ""},
-        {"card_id": "waifu_004", "name": "Nezuko", "rarity": "Legendary", "price": 50, "image_url": ""},
-        {"card_id": "waifu_005", "name": "Zero Two", "rarity": "Mythic", "price": 100, "image_url": ""}
-    ]
+    # Get all available cards from master collection
+    all_cards = list(master_cards.find())
+    if not all_cards:
+        initialize_master_cards()
+        all_cards = list(master_cards.find())
     
-    for card in sample_cards:
-        card["date_added"] = datetime.utcnow()
-        default_shop.insert_one(card)
+    # Rarity weights for shop selection (higher weight = more likely to appear)
+    rarity_weights = {
+        "COMMON": 35,
+        "UNCOMMON": 25, 
+        "RARE": 20,
+        "EPIC": 10,
+        "LEGENDARY": 5,
+        "MYTHIC": 3,
+        "RETRO": 1.5,
+        "ZENITH": 0.4,
+        "LIMITED EDITION": 0.1
+    }
+    
+    # Select random cards for shop with weighted rarity
+    selected_cards = []
+    
+    for _ in range(shop_size):
+        # Select rarity based on weights
+        rarities = list(rarity_weights.keys())
+        weights = list(rarity_weights.values())
+        selected_rarity = random.choices(rarities, weights=weights)[0]
+        
+        # Get cards of selected rarity
+        rarity_cards = [card for card in all_cards if card["rarity"] == selected_rarity]
+        
+        if rarity_cards:
+            selected_card = random.choice(rarity_cards)
+            # Create shop item with random pricing
+            shop_item = {
+                "card_id": selected_card["card_id"],
+                "name": selected_card["name"],
+                "rarity": selected_card["rarity"],
+                "price": get_random_price_for_rarity(selected_card["rarity"]),
+                "image_url": selected_card["image_url"],
+                "series": selected_card.get("series", "Unknown"),
+                "date_added": datetime.utcnow()
+            }
+            selected_cards.append(shop_item)
+    
+    # Insert selected cards into shop
+    if selected_cards:
+        default_shop.insert_many(selected_cards)
+        print(f"Daily shop refreshed with {len(selected_cards)} new cards!")
+    
+    return selected_cards
+
+def initialize_default_shop():
+    """Initialize default shop by refreshing with random cards"""
+    # First make sure master cards exist
+    if master_cards.count_documents({}) == 0:
+        initialize_master_cards()
+    
+    # Then refresh the shop
+    refresh_daily_shop()
 
 def get_default_shop_items():
     """Get all items in default shop"""
@@ -293,3 +450,34 @@ def get_user_cards(user_id):
 def get_user_card_count(user_id, card_id):
     """Get the count of a specific card owned by user"""
     return user_cards.count_documents({"user_id": user_id, "card_id": card_id})
+
+# Rarity styling functions
+def get_rarity_emoji(rarity):
+    """Get emoji for rarity level"""
+    rarity_emojis = {
+        "LIMITED EDITION": "🌟💎🌟",
+        "ZENITH": "⚡👑⚡", 
+        "RETRO": "🎮✨🎮",
+        "MYTHIC": "🔥💫🔥",
+        "LEGENDARY": "👑💜👑",
+        "EPIC": "⚔️💙⚔️",
+        "RARE": "💚✨💚",
+        "UNCOMMON": "🔸💛🔸",
+        "COMMON": "⚪🤍⚪"
+    }
+    return rarity_emojis.get(rarity, "⭐")
+
+def get_rarity_color_text(rarity):
+    """Get styled text for rarity (HTML format)"""
+    rarity_styles = {
+        "LIMITED EDITION": "🌟 <b>ULTRA RARE EDITION</b> 🌟",
+        "ZENITH": "⚡ <b>APEX TIER</b> ⚡",
+        "RETRO": "🎮 <b>CLASSIC COLLECTION</b> 🎮", 
+        "MYTHIC": "🔥 <b>LEGENDARY STATUS</b> 🔥",
+        "LEGENDARY": "👑 <b>ROYAL TIER</b> 👑",
+        "EPIC": "⚔️ <b>HEROIC GRADE</b> ⚔️",
+        "RARE": "💚 <b>PREMIUM QUALITY</b> 💚",
+        "UNCOMMON": "🔸 <b>SPECIAL EDITION</b> 🔸",
+        "COMMON": "⚪ <b>STANDARD GRADE</b> ⚪"
+    }
+    return rarity_styles.get(rarity, "⭐ <b>SPECIAL CARD</b> ⭐")

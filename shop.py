@@ -4,55 +4,160 @@ from utils import *
 from bson import ObjectId
 
 async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Display the default daily shop"""
+    """Display the default daily shop with individual card images"""
     shop_items = get_default_shop_items()
     
     if not shop_items:
         await update.message.reply_text("🛒 The shop is empty! Come back later.")
         return
     
-    text = "🛒 **Daily Waifu Shop** 🛒\n\n"
-    keyboard = []
+    # Send header message
+    header_text = f"""✨ **DAILY WAIFU SHOP** ✨
+🌟 {len(shop_items)} Amazing Cards Available Today!
+💫 Each card is unique with random pricing!
+
+📦 **Your Cards Below** 📦"""
     
+    await update.message.reply_text(header_text)
+    
+    # Send individual card messages with images
     for item in shop_items:
-        text += f"🃏 **{item['name']}** ({item['rarity']})\n"
-        text += f"💰 Price: {item['price']} ☆W\n"
-        text += f"🆔 ID: {item['card_id']}\n\n"
+        # Determine rarity emoji and styling
+        rarity_emoji = get_rarity_emoji(item['rarity'])
+        rarity_color = get_rarity_color_text(item['rarity'])
         
-        keyboard.append([InlineKeyboardButton(
-            f"Buy {item['name']} - {item['price']} ☆W",
+        # Create stylish card description with HTML formatting
+        card_text = f"""
+{rarity_emoji} <b>{item['name']}</b> {rarity_emoji}
+{rarity_color}
+
+📺 <b>Series:</b> {item.get('series', 'Unknown')}
+💎 <b>Rarity:</b> {item['rarity']}
+💰 <b>Price:</b> {item['price']} ☆W
+🆔 <b>ID:</b> <code>{item['card_id']}</code>
+
+✨ Limited time offer! ✨
+        """.strip()
+        
+        # Create buy button
+        keyboard = [[InlineKeyboardButton(
+            f"🛒 Buy {item['name']} - {item['price']} ☆W",
             callback_data=f"shop_buy_{item['card_id']}"
-        )])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(text, reply_markup=reply_markup)
+        )]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Send card image with description and buy button
+        try:
+            if item.get('image_url') and item['image_url'] != "":
+                await update.message.reply_photo(
+                    photo=item['image_url'],
+                    caption=card_text,
+                    reply_markup=reply_markup,
+                    parse_mode='HTML'
+                )
+            else:
+                # Fallback if no image - send text only
+                await update.message.reply_text(
+                    f"🖼️ [No Image Available]\n\n{card_text}",
+                    reply_markup=reply_markup,
+                    parse_mode='HTML'
+                )
+        except Exception as e:
+            # Fallback if image fails to load
+            await update.message.reply_text(
+                f"🖼️ [Image Loading Failed]\n\n{card_text}",
+                reply_markup=reply_markup,
+                parse_mode='HTML'
+            )
 
 async def show_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Display P2P marketplace"""
+    """Display P2P marketplace with individual card images"""
     listings = get_p2p_listings()
     
     if not listings:
         await update.message.reply_text("🏪 The marketplace is empty! Be the first to list something with /sell.")
         return
     
-    text = "🏪 **P2P Marketplace** 🏪\n\n"
-    keyboard = []
+    # Send header message
+    header_text = f"""🏪 **P2P MARKETPLACE** 🏪
+🤝 {len(listings)} Cards Listed by Players!
+💫 Buy directly from other users!
+
+🛍️ **Available Cards Below** 🛍️"""
     
-    for listing in listings[:10]:  # Show first 10 listings
-        text += f"🃏 **{listing['card_id']}**\n"
-        text += f"💰 Price: {listing['price']} ☆W\n"
-        text += f"👤 Seller: {listing['seller_id']}\n\n"
+    await update.message.reply_text(header_text)
+    
+    # Show first 10 listings to avoid spam
+    display_listings = listings[:10]
+    
+    # Send individual card messages with images
+    for listing in display_listings:
+        # Get card details from master collection
+        card_details = master_cards.find_one({"card_id": listing['card_id']})
         
-        keyboard.append([InlineKeyboardButton(
-            f"Buy {listing['card_id']} - {listing['price']} ☆W",
+        if not card_details:
+            # Fallback if card not found in master collection
+            card_details = {
+                "name": listing.get('card_id', 'Unknown Card'),
+                "rarity": "Unknown",
+                "series": "Unknown",
+                "image_url": ""
+            }
+        
+        # Determine rarity emoji and styling
+        rarity_emoji = get_rarity_emoji(card_details['rarity'])
+        rarity_color = get_rarity_color_text(card_details['rarity'])
+        
+        # Create stylish card description with HTML formatting
+        card_text = f"""
+{rarity_emoji} <b>{card_details['name']}</b> {rarity_emoji}
+{rarity_color}
+
+📺 <b>Series:</b> {card_details.get('series', 'Unknown')}
+💎 <b>Rarity:</b> {card_details['rarity']}
+💰 <b>Price:</b> {listing['price']} ☆W
+🆔 <b>ID:</b> <code>{listing['card_id']}</code>
+👤 <b>Seller ID:</b> {listing['seller_id']}
+
+🤝 Sold by fellow player!
+        """.strip()
+        
+        # Create buy button
+        keyboard = [[InlineKeyboardButton(
+            f"🛒 Buy from Player - {listing['price']} ☆W",
             callback_data=f"market_buy_{str(listing['_id'])}"
-        )])
+        )]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Send card image with description and buy button
+        try:
+            image_url = card_details.get('image_url', '')
+            if image_url and image_url != "":
+                await update.message.reply_photo(
+                    photo=image_url,
+                    caption=card_text,
+                    reply_markup=reply_markup,
+                    parse_mode='HTML'
+                )
+            else:
+                # Fallback if no image - send text only
+                await update.message.reply_text(
+                    f"🖼️ [No Image Available]\n\n{card_text}",
+                    reply_markup=reply_markup,
+                    parse_mode='HTML'
+                )
+        except Exception as e:
+            # Fallback if image fails to load
+            await update.message.reply_text(
+                f"🖼️ [Image Loading Failed]\n\n{card_text}",
+                reply_markup=reply_markup,
+                parse_mode='HTML'
+            )
     
+    # Show remaining listings count if there are more
     if len(listings) > 10:
-        text += f"... and {len(listings) - 10} more items!"
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(text, reply_markup=reply_markup)
+        footer_text = f"📄 **Showing 10 of {len(listings)} listings**\nMore cards available! Keep checking back!"
+        await update.message.reply_text(footer_text)
 
 async def show_user_listings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show user's current P2P listings"""
