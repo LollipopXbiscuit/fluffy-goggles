@@ -4,6 +4,12 @@ from config import TOKEN
 from database import init_db, save_payment, get_photo_id
 import os
 
+if not TOKEN:
+    print("❌ Error: TOKEN environment variable is required!")
+    print("Please set your Telegram Bot Token using Replit Secrets.")
+    print("Go to the Secrets tab in Replit and add: TOKEN = your_telegram_bot_token")
+    exit(1)
+
 bot = telebot.TeleBot(TOKEN)
 
 # Инициализация базы данных
