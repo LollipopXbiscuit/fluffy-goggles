@@ -3,6 +3,8 @@ from telebot import types
 from config import TOKEN
 from database import init_db, save_payment, get_photo_id
 import os
+from telegram import Update, LabeledPrice, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 if not TOKEN:
     print("❌ Error: TOKEN environment variable is required!")
@@ -92,3 +94,55 @@ def handle_pay_support(message):
 
 # Запуск бота
 bot.polling()
+# Parse Wish packs from Replit secret
+packs_str = os.environ.get("WISH_PACKS", "")
+wish_packs = {}
+for pack in packs_str.split(","):
+    wishes, stars = pack.split(":")
+    wish_packs[int(wishes)] = int(stars)
+
+# Product name from secret
+PRODUCT_NAME = os.environ.get("PRODUCT_NAME", "Wish Pack")
+
+# /buywishes command: shows available packs
+async def buywishes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    buttons = []
+    for wishes, stars in wish_packs.items():
+        buttons.append([InlineKeyboardButton(f"{wishes} Wishes = {stars} Stars", callback_data=f"buy_{wishes}")])
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    await update.message.reply_text(
+        f"Hi {user.first_name}! Choose a Wish pack to buy:", reply_markup=keyboard
+    )
+
+# Callback to handle button presses
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data.startswith("buy_"):
+        wishes = int(query.data.split("_")[1])
+        stars_price = wish_packs[wishes]
+
+        # Create Telegram invoice
+        prices = [LabeledPrice(label=f"{wishes} Wishes", amount=stars_price*100)]  # amount in cents
+
+        await context.bot.send_invoice(
+            chat_id=query.message.chat_id,
+            title=PRODUCT_NAME,
+            description=f"Purchase {wishes} Wishes using Stars!",
+            payload=f"wish_{wishes}_{query.from_user.id}",
+            provider_token=os.environ.get("PAYMENT_PROVIDER_TOKEN"),  # your Telegram payment token
+            currency="USD",
+            prices=prices
+        )
+
+# Example Replit bot setup
+if name == "main":
+    app = ApplicationBuilder().token(os.environ.get("BOT_TOKEN")).build()
+
+    app.add_handler(CommandHandler("buywishes", buywishes))
+    app.add_handler(CallbackQueryHandler(button_callback))
+
+    app.run_polling()

@@ -1,0 +1,105 @@
+> Build a Telegram bot with the following features:
+
+1. General Setup
+
+Python 3.12+, using python-telegram-bot.
+
+SQLite database (database.db) for users, balances, transactions, default shop, and P2P listings.
+
+.env configuration for BOT_TOKEN and other secrets.
+
+
+2. Custom Currency System: “Wish”
+
+Symbol: ☆W
+
+Commands:
+
+/balance → shows Wish balance
+
+/daily → claim daily free Wishes, refreshes every 24 hours
+
+/transfer @user <amount> → send Wishes between users
+
+
+Database tracks: user_id, wish_balance, last_daily_claim
+
+
+3. Telegram Stars Integration
+
+Users can buy Wishes with Telegram Stars via /buywishes.
+
+On successful payment, credit Wishes automatically.
+
+Configurable Stars → Wish conversion and product name (e.g., "Wish Pack").
+
+
+4. Shop System (Astriswap Style)
+
+Default Daily Shop:
+
+Refreshes daily.
+
+Populated automatically with waifu cards from existing waifu bot.
+
+Users can purchase cards using Wishes.
+
+
+P2P Marketplace:
+
+Users can list their own waifu cards for sale with a price in Wishes.
+
+Other users can browse (/market) and purchase listed cards.
+
+/mysell → shows the user all their currently listed cards, with inline buttons to remove or edit price.
+
+
+Buying a card automatically notifies your waifu bot to grant the purchased card to the user.
+
+
+5. Commands / Flow
+
+/balance, /daily, /transfer @user <amount> → Wish currency commands
+
+/buywishes → buy Wishes via Stars
+
+/shop → view default daily shop
+
+/buy <card_id> → buy card from default shop
+
+/market → view P2P listings
+
+/sell <card_id> <price> → list a card for sale
+
+/buyfrom <user_id> <card_id> → buy card from another user
+
+/mysell → view all your current P2P listings
+
+
+6. Database & Utilities
+
+Tables for: users, transactions, default_shop, p2p_listings
+
+Helper functions for: creating/checking users, updating balances, listing/purchasing cards
+
+Ensure transactional safety: prevent negative balances and double purchases
+
+
+7. Optional Features / Enhancements
+
+Inline keyboards for shop browsing, purchases, and user menus
+
+/history command to view past transactions
+
+Automatic daily refresh for default shop
+
+Modular structure: main.py, utils.py, shop.py for easy future integration with waifu bot
+
+
+8. Output Requirements
+
+Generate ready-to-run files: main.py, utils.py, shop.py, requirements.txt
+
+Include sample .env file and database initialization with example waifu cards for testing
+
+Bot should be fully deployable on Replit with only .env setup
