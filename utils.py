@@ -16,6 +16,7 @@ users = db.users
 transactions = db.transactions
 default_shop = db.default_shop
 p2p_listings = db.p2p_listings
+user_cards = db.user_cards
 
 def create_user(user_id, username=None):
     """Create a new user or return existing user"""
@@ -162,6 +163,9 @@ def buy_from_default_shop(user_id, card_id):
     # Deduct wishes
     users.update_one({"user_id": user_id}, {"$inc": {"wish_balance": -card["price"]}})
     
+    # Add card to user's collection
+    add_card_to_user(user_id, card_id, card["name"], card["rarity"])
+    
     # Record transaction
     record_transaction(user_id, "shop_purchase", -card["price"], f"Bought {card['name']} from shop")
     
@@ -169,6 +173,19 @@ def buy_from_default_shop(user_id, card_id):
 
 def create_p2p_listing(user_id, card_id, price):
     """Create a P2P marketplace listing"""
+    # Check if user owns the card
+    if not user_owns_card(user_id, card_id):
+        return None, "You don't own this card"
+    
+    # Check if card is already listed
+    existing_listing = p2p_listings.find_one({
+        "seller_id": user_id,
+        "card_id": card_id,
+        "is_active": True
+    })
+    if existing_listing:
+        return None, "Card is already listed"
+    
     listing = {
         "seller_id": user_id,
         "card_id": card_id,
@@ -177,7 +194,7 @@ def create_p2p_listing(user_id, card_id, price):
         "is_active": True
     }
     result = p2p_listings.insert_one(listing)
-    return str(result.inserted_id)
+    return str(result.inserted_id), "Listing created successfully"
 
 def get_p2p_listings():
     """Get all active P2P listings"""
@@ -197,9 +214,23 @@ def buy_from_p2p(buyer_id, listing_id):
     if not buyer or buyer["wish_balance"] < listing["price"]:
         return False, "Insufficient wishes"
     
+    if buyer_id == listing["seller_id"]:
+        return False, "Cannot buy your own listing"
+    
+    # Get card details
+    seller_card = user_cards.find_one({
+        "user_id": listing["seller_id"],
+        "card_id": listing["card_id"]
+    })
+    if not seller_card:
+        return False, "Seller no longer owns this card"
+    
     # Transfer wishes
     users.update_one({"user_id": buyer_id}, {"$inc": {"wish_balance": -listing["price"]}})
     users.update_one({"user_id": listing["seller_id"]}, {"$inc": {"wish_balance": listing["price"]}})
+    
+    # Transfer card ownership
+    transfer_card(listing["seller_id"], buyer_id, listing["card_id"])
     
     # Deactivate listing
     p2p_listings.update_one({"_id": listing_id}, {"$set": {"is_active": False}})
@@ -225,3 +256,40 @@ def update_p2p_listing_price(user_id, listing_id, new_price):
         {"$set": {"price": new_price}}
     )
     return result.modified_count > 0
+
+# Card ownership management functions
+def add_card_to_user(user_id, card_id, card_name=None, rarity=None):
+    """Add a card to user's collection"""
+    card_data = {
+        "user_id": user_id,
+        "card_id": card_id,
+        "card_name": card_name,
+        "rarity": rarity,
+        "obtained_at": datetime.utcnow()
+    }
+    user_cards.insert_one(card_data)
+
+def user_owns_card(user_id, card_id):
+    """Check if user owns a specific card"""
+    return user_cards.find_one({"user_id": user_id, "card_id": card_id}) is not None
+
+def transfer_card(from_user_id, to_user_id, card_id):
+    """Transfer a card from one user to another"""
+    # Remove from seller
+    card = user_cards.find_one({"user_id": from_user_id, "card_id": card_id})
+    if not card:
+        return False
+    
+    user_cards.delete_one({"user_id": from_user_id, "card_id": card_id})
+    
+    # Add to buyer
+    add_card_to_user(to_user_id, card_id, card.get("card_name"), card.get("rarity"))
+    return True
+
+def get_user_cards(user_id):
+    """Get all cards owned by a user"""
+    return list(user_cards.find({"user_id": user_id}))
+
+def get_user_card_count(user_id, card_id):
+    """Get the count of a specific card owned by user"""
+    return user_cards.count_documents({"user_id": user_id, "card_id": card_id})

@@ -17,9 +17,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Suppress httpx logs to prevent token exposure
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 # Bot configuration
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-OWNER_ID = int(os.getenv('OWNER_ID', '0'))  # Set your user ID as owner
+OWNER_ID_STR = os.getenv('OWNER_ID', '0')
+# Handle multiple owner IDs (take the first one)
+OWNER_ID = int(OWNER_ID_STR.split(',')[0]) if OWNER_ID_STR else 0
 
 if not BOT_TOKEN:
     logger.error("BOT_TOKEN not found in environment variables!")
@@ -50,6 +55,7 @@ Your magical currency: {WISH_SYMBOL} (Wishes)
 📦 /mysell - Manage your listings
 💎 /buywishes - Buy wishes with Telegram Stars
 📊 /history - View transaction history
+🃏 /cards - View your card collection
 
 🌟 Start by claiming your daily reward with /daily!
     """
@@ -94,11 +100,11 @@ async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /transfer command"""
     if len(context.args) != 2:
-        await update.message.reply_text("Usage: /transfer @username amount")
+        await update.message.reply_text("Usage: /transfer @username amount\nOr use /transferid user_id amount")
         return
     
     try:
-        target_user = context.args[0].replace('@', '')
+        target_input = context.args[0]
         amount = int(context.args[1])
         
         if amount <= 0:
@@ -107,9 +113,38 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         from_user_id = update.effective_user.id
         
-        # Find target user by username (simplified - in real implementation you'd need user mapping)
-        await update.message.reply_text("Note: For this demo, use user ID instead of username. Usage: /transfer user_id amount")
+        # Check if it's a username or user ID
+        if target_input.startswith('@'):
+            username = target_input[1:]  # Remove @
+            # Find user by username
+            target_user = users.find_one({"username": username})
+            if not target_user:
+                await update.message.reply_text(f"❌ User @{username} not found. They need to start the bot first.")
+                return
+            to_user_id = target_user["user_id"]
+        else:
+            # Assume it's a user ID
+            try:
+                to_user_id = int(target_input)
+            except ValueError:
+                await update.message.reply_text("❌ Invalid user ID or username format.")
+                return
         
+        if from_user_id == to_user_id:
+            await update.message.reply_text("You can't transfer to yourself!")
+            return
+        
+        if transfer_wishes(from_user_id, to_user_id, amount):
+            from_user = get_user(from_user_id)
+            success_text = f"""
+✅ Transfer successful!
+Sent {amount} {WISH_SYMBOL} to user {to_user_id}
+💰 Your new balance: {from_user['wish_balance']} {WISH_SYMBOL}
+            """
+            await update.message.reply_text(success_text)
+        else:
+            await update.message.reply_text("❌ Transfer failed! Check your balance.")
+    
     except ValueError:
         await update.message.reply_text("Invalid amount! Please enter a number.")
 
@@ -200,6 +235,39 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history_text += f"• {timestamp}: {amount_str} {WISH_SYMBOL} - {tx['description']}\n"
     
     await update.message.reply_text(history_text)
+
+async def cards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /cards command - show user's card collection"""
+    user_id = update.effective_user.id
+    user_cards_list = get_user_cards(user_id)
+    
+    if not user_cards_list:
+        await update.message.reply_text("🃏 You don't have any cards yet! Visit the /shop to buy some.")
+        return
+    
+    # Group cards by card_id and count duplicates
+    card_counts = {}
+    for card in user_cards_list:
+        card_id = card['card_id']
+        if card_id in card_counts:
+            card_counts[card_id]['count'] += 1
+        else:
+            card_counts[card_id] = {
+                'count': 1,
+                'name': card.get('card_name', card_id),
+                'rarity': card.get('rarity', 'Unknown')
+            }
+    
+    cards_text = f"🃏 **Your Card Collection** 🃏\n\n"
+    for card_id, info in card_counts.items():
+        count_display = f" x{info['count']}" if info['count'] > 1 else ""
+        cards_text += f"• **{info['name']}** ({info['rarity']}){count_display}\n"
+        cards_text += f"  🆔 {card_id}\n\n"
+    
+    cards_text += f"📊 Total unique cards: {len(card_counts)}\n"
+    cards_text += f"📊 Total cards: {len(user_cards_list)}"
+    
+    await update.message.reply_text(cards_text)
 
 async def grant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /grant command - Owner only"""
@@ -320,6 +388,7 @@ def main():
     application.add_handler(CommandHandler("mysell", mysell_command))
     application.add_handler(CommandHandler("history", history_command))
     application.add_handler(CommandHandler("grant", grant_command))  # Owner only command
+    application.add_handler(CommandHandler("cards", cards_command))
     
     # Shop-related handlers (from shop.py)
     application.add_handler(CommandHandler("buy", buy_from_shop_command))

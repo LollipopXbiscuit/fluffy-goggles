@@ -120,8 +120,14 @@ async def sell_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         user_id = update.effective_user.id
-        listing_id = create_p2p_listing(user_id, card_id, price)
+        result = create_p2p_listing(user_id, card_id, price)
         
+        if result[0] is None:
+            # Error occurred
+            await update.message.reply_text(f"❌ {result[1]}")
+            return
+        
+        listing_id = result[0]
         success_text = f"""
 ✅ **Listing Created!**
 🃏 Card: {card_id}

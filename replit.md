@@ -1,6 +1,6 @@
 # Overview
 
-TelegramStarsBot is a Telegram bot that enables users to purchase digital images using Telegram Stars (XTR), Telegram's internal currency system. The bot demonstrates integration with Telegram's payment system, providing a simple e-commerce experience within the Telegram platform. Users can browse, purchase, and receive digital content directly through the bot interface.
+WishBot is a comprehensive Telegram bot featuring a custom currency system called "Wish" (☆W) with integrated marketplace functionality. Users can earn, transfer, and spend wishes on waifu cards through both a daily shop and peer-to-peer marketplace. The bot includes Telegram Stars integration for purchasing wishes and connects to MongoDB for persistent data storage.
 
 # User Preferences
 
@@ -9,27 +9,38 @@ Preferred communication style: Simple, everyday language.
 # System Architecture
 
 ## Bot Framework
-- **pyTelegramBotAPI**: Core bot framework handling Telegram API interactions, message processing, and callback management
-- **Event-driven architecture**: Uses decorators for command and callback handling with separate handlers for different user interactions
+- **python-telegram-bot v22**: Modern async bot framework with comprehensive Telegram API support
+- **Event-driven architecture**: Command handlers, callback query handlers, and payment handlers
+- **Modular structure**: Separated into main.py, utils.py, and shop.py for maintainability
 
 ## Database Layer
-- **SQLite**: Lightweight local database for payment tracking and user transaction history
-- **Simple schema**: Stores user payments with user_id, payment_id, amount, and currency fields
-- **Connection management**: Uses context managers for proper database connection handling
+- **MongoDB**: Cloud database integration using user's MONGODB_URL secret
+- **Collections**: users, transactions, default_shop, p2p_listings, user_cards
+- **Card ownership system**: Proper tracking of user-owned cards with ownership validation
+- **Transaction safety**: Prevents negative balances and validates card ownership before transfers
 
-## Payment System
-- **Telegram Stars integration**: Leverages Telegram's native XTR currency system for seamless in-app purchases
-- **Invoice-based payments**: Creates payment invoices with labeled prices and handles successful payment callbacks
-- **Payment tracking**: Records all successful transactions for audit and user management
+## Currency System
+- **Custom Wish currency (☆W)**: Internal bot currency for purchasing cards
+- **Daily rewards**: 24-hour cooldown system for free wish claims
+- **Transfer system**: Send wishes between users via username or user ID
+- **Transaction history**: Complete audit trail of all currency movements
 
-## Configuration Management
-- **Environment-based config**: Uses python-dotenv for secure token and database configuration management
-- **Graceful error handling**: Validates required environment variables with clear error messaging for missing configuration
+## Payment Integration
+- **Telegram Stars (XTR)**: Native Telegram payment system for buying wishes
+- **Multiple packages**: 1-50 star packages with configurable conversion rates
+- **Secure processing**: Pre-checkout validation and successful payment handling
 
-## User Interface
-- **Inline keyboards**: Custom keyboard layouts for purchase flow and user interactions
-- **Command handlers**: Standard Telegram bot commands (/start, /paysupport) for user navigation
-- **Callback-driven flow**: Button-based interaction model for improved user experience
+## Marketplace System
+- **Daily Shop**: Curated waifu cards with rarity-based pricing
+- **P2P Marketplace**: User-to-user card trading with ownership validation
+- **Inventory management**: Complete card collection tracking with duplicate counting
+- **Listing controls**: Create, view, and manage marketplace listings
+
+## Security & Configuration
+- **Environment secrets**: Secure BOT_TOKEN and OWNER_ID management via Replit Secrets
+- **Log sanitization**: Suppressed httpx logs to prevent token exposure
+- **Owner privileges**: Admin commands restricted to configured owner ID
+- **Input validation**: Comprehensive parameter validation and error handling
 
 # External Dependencies
 
