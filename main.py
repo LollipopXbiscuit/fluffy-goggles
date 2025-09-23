@@ -265,24 +265,16 @@ Click a button below to purchase:
     await update.message.reply_text(text, reply_markup=reply_markup)
 
 async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /shop command with two tabs"""
-    text = "🛑️ VexaSwitch Store – Shop\nChoose a tab to browse:"
-    
-    keyboard = [
-        [InlineKeyboardButton("🏪 Daily Shop", callback_data="shop_tab_daily"),
-         InlineKeyboardButton("🏪 P2P Marketplace", callback_data="shop_tab_p2p")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(text, reply_markup=reply_markup)
+    """Handle /shop command - Coming Soon"""
+    await update.message.reply_text("🚧 Coming Soon")
 
 async def market_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /market command"""
     await show_market(update, context)
 
 async def mysales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /mysales command"""
-    await show_user_listings(update, context)
+    """Handle /mysales command - Coming Soon"""
+    await update.message.reply_text("🚧 Coming Soon")
 
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /history command"""
