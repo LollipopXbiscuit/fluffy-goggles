@@ -83,16 +83,19 @@ async def vault(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(balance_text)
 
 async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /dice command - earn extra wishes randomly with cooldown"""
+    """Handle /dice command - earn extra wishes randomly (4 times per day)"""
     user_id = update.effective_user.id
     
     if not get_user(user_id):
         create_user(user_id, update.effective_user.username)
     
-    # Check cooldown (24 hours like daily)
-    if not can_claim_daily(user_id):  # Reuse daily cooldown logic
-        await update.message.reply_text("⏰ You've already used dice today! Come back in 24 hours.")
+    # Check if user can use dice (4 times per day)
+    if not can_use_dice(user_id):
+        await update.message.reply_text("⏰ You've reached your daily dice limit (4 times)! Try again tomorrow.")
         return
+    
+    # Use one dice attempt
+    use_dice(user_id)
     
     # Random reward between 1-10 wishes
     import random
@@ -100,21 +103,17 @@ async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_user_balance(user_id, reward_amount)
     record_transaction(user_id, "dice_reward", reward_amount, "Random dice reward")
     
-    # Update last dice claim time (using daily claim field)
-    from datetime import datetime
-    if users is not None:
-        users.update_one(
-            {"user_id": user_id},
-            {"$set": {"last_daily_claim": datetime.utcnow()}}
-        )
-    
+    # Get updated user data and dice uses
     user = get_user(user_id)
+    dice_uses = user.get("dice_uses_today", 0)
+    remaining_uses = 4 - dice_uses
+    
     success_text = f"""
 🎲 Lucky dice roll!
 +{reward_amount} {WISH_SYMBOL}
 
 💰 New balance: {user['wish_balance']} {WISH_SYMBOL}
-⏰ Come back in 24 hours for another dice roll!
+🎯 Dice uses left today: {remaining_uses}/4
     """
     await update.message.reply_text(success_text)
 

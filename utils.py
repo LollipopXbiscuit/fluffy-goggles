@@ -42,7 +42,7 @@ def create_user(user_id, username=None):
     user_data = {
         "user_id": user_id,
         "username": username,
-        "wish_balance": 200,
+        "wish_balance": 50,
         "last_daily_claim": None,
         "dice_uses_today": 0,
         "last_dice_reset": datetime.utcnow().date().isoformat(),
@@ -97,6 +97,69 @@ def can_claim_daily(user_id):
     
     time_since_claim = datetime.utcnow() - last_claim
     return time_since_claim >= timedelta(hours=24)
+
+def can_use_dice(user_id):
+    """Check if user can use dice (4 times per day)"""
+    if users is None:
+        print("Database not connected - allowing dice use")
+        return True
+        
+    user = get_user(user_id)
+    if not user:
+        return False
+    
+    # Get current date
+    today = datetime.utcnow().date().isoformat()
+    
+    # Check if it's a new day, reset counter if so
+    if user.get("last_dice_reset") != today:
+        users.update_one(
+            {"user_id": user_id},
+            {
+                "$set": {
+                    "dice_uses_today": 0,
+                    "last_dice_reset": today
+                }
+            }
+        )
+        return True
+    
+    # Check if user has dice uses left (max 4 per day)
+    dice_uses = user.get("dice_uses_today", 0)
+    return dice_uses < 4
+
+def use_dice(user_id):
+    """Use one dice attempt (increment counter)"""
+    if users is None:
+        print(f"Database not connected - would use dice for user {user_id}")
+        return True
+        
+    user = get_user(user_id)
+    if not user:
+        return False
+    
+    # Get current date
+    today = datetime.utcnow().date().isoformat()
+    
+    # Reset counter if it's a new day
+    if user.get("last_dice_reset") != today:
+        users.update_one(
+            {"user_id": user_id},
+            {
+                "$set": {
+                    "dice_uses_today": 1,
+                    "last_dice_reset": today
+                }
+            }
+        )
+    else:
+        # Increment dice uses
+        users.update_one(
+            {"user_id": user_id},
+            {"$inc": {"dice_uses_today": 1}}
+        )
+    
+    return True
 
 def claim_daily_reward(user_id, amount=10):
     """Claim daily reward and update last claim time"""
