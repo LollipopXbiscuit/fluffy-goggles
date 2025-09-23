@@ -72,6 +72,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /mysales - View your sales (Coming Soon)
 /history - View transaction history
 /cards - View your card collection
+/terms - View Terms of Service
+/support - Get support help
 
 > Note: If you encounter any issues or bugs, please report them to @CollectorAlerts.
     """
@@ -266,6 +268,9 @@ Choose a package:
 • 90 ⭐ = 2000 {WISH_SYMBOL}
 
 Click a button below to purchase:
+
+📋 By purchasing, you agree to our /terms
+❓ Need help? Use /support
     """
     
     await update.message.reply_text(text, reply_markup=reply_markup)
@@ -332,6 +337,71 @@ async def cards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cards_text += f"📊 Total cards: {len(user_cards_list)}"
     
     await update.message.reply_text(cards_text)
+
+async def terms_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /terms command"""
+    terms_text = f"""
+📋 **Terms of Service - VexaSwitch Store Bot**
+
+**1. Service Description**
+VexaSwitch Store Bot provides digital currency ({WISH_SYMBOL} Wishes) for use within our gaming ecosystem. All purchases are for digital goods and services only.
+
+**2. Payment & Refunds**
+• Payments are processed through Telegram Stars
+• All sales are final - no refunds for digital currency
+• Purchases are non-transferable outside the bot ecosystem
+
+**3. User Responsibilities**
+• Users must be 13+ years old to use this service
+• One account per user - multiple accounts prohibited
+• No automated tools, bots, or scripts allowed
+
+**4. Digital Currency**
+• {WISH_SYMBOL} Wishes have no real-world monetary value
+• Currency expires if account is inactive for 365+ days
+• We reserve the right to adjust exchange rates
+
+**5. Prohibited Activities**
+• Fraud, chargebacks, or payment disputes
+• Selling/trading currency for real money
+• Harassment or abuse of other users
+• Exploiting bugs or system vulnerabilities
+
+**6. Account Termination**
+We may suspend/terminate accounts for ToS violations without prior notice or refund.
+
+**7. Changes to Terms**
+Terms may be updated at any time. Continued use constitutes acceptance of new terms.
+
+**8. Contact**
+For questions or disputes, use /support command.
+
+*Last updated: {datetime.now().strftime("%B %Y")}*
+*By using this bot, you agree to these terms.*
+    """
+    await update.message.reply_text(terms_text)
+
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /support command"""
+    support_text = """
+🆘 **Need Help?**
+
+For technical support, bug reports, or general questions, please join our support channel:
+
+🔗 **Support Channel:** https://t.me/c/1003076933681
+
+Our support team will assist you with:
+• Payment issues
+• Technical problems  
+• Account questions
+• Feature requests
+• Bug reports
+
+**Response Time:** Usually within 24 hours
+
+You can also contact @CollectorAlerts for urgent issues.
+    """
+    await update.message.reply_text(support_text)
 
 async def grant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /grant command - Owner only. Supports: /grant user_id amount OR reply to user with /grant amount"""
@@ -583,7 +653,9 @@ def main():
             BotCommand("mysales", "View your sales"),
             BotCommand("history", "View transaction history"),
             BotCommand("cards", "View your card collection"),
-            BotCommand("sell", "Sell items on marketplace")
+            BotCommand("sell", "Sell items on marketplace"),
+            BotCommand("terms", "View Terms of Service"),
+            BotCommand("support", "Get support help")
         ]
         await application.bot.set_my_commands(commands)
         logger.info("Bot commands menu set up successfully")
@@ -608,6 +680,8 @@ def main():
     application.add_handler(CommandHandler("grant", grant_command))  # Owner only command
     application.add_handler(CommandHandler("refreshshop", refresh_shop_command))  # Owner only command
     application.add_handler(CommandHandler("cards", cards_command))
+    application.add_handler(CommandHandler("terms", terms_command))
+    application.add_handler(CommandHandler("support", support_command))
     
     # Shop-related handlers (from shop.py)
     application.add_handler(CommandHandler("sell", sell_command))
