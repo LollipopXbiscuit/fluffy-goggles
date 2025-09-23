@@ -160,28 +160,28 @@ async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🛒 The shop is empty! Come back later.")
         return
 
-    await update.message.reply_text(f"✨ **DAILY WAIFU SHOP** ✨\n🌟 {len(shop_items)} Cards Available Today!")
-
+    # Build the formatted shop message
+    shop_text = "✨ **DAILY WAIFU SHOP** ✨\n\n"
+    
     for item in shop_items:
         rarity_emoji = get_rarity_emoji(item['rarity'])
-        rarity_color = get_rarity_color_text(item['rarity'])
-        card_text = f"""
-{rarity_emoji} <b>{item['name']}</b> {rarity_emoji}
-{rarity_color}
-
-📺 <b>Series:</b> {item.get('series', 'Unknown')}
-💎 <b>Rarity:</b> {item['rarity']}
-💰 <b>Price:</b> {item['price']} 𝓒
-🆔 <b>ID:</b> <code>{item['card_id']}</code>
-        """.strip()
-
-        keyboard = [[InlineKeyboardButton(f"🛒 Buy {item['name']} - {item['price']} 𝓒", callback_data=f"shop_buy_{item['card_id']}")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        if item.get('image_url'):
-            await update.message.reply_photo(photo=item['image_url'], caption=card_text, reply_markup=reply_markup, parse_mode='HTML')
-        else:
-            await update.message.reply_text(card_text, reply_markup=reply_markup, parse_mode='HTML')
+        character_name = item['name']
+        anime_name = item.get('series', 'Unknown')
+        price = item['price']
+        
+        shop_text += f"{rarity_emoji} {character_name}\n"
+        shop_text += f"       {anime_name}\n"
+        shop_text += f"{price} 𝓒\n"
+        shop_text += "---------------------\n"
+    
+    # Create buy buttons for all cards
+    keyboard = []
+    for item in shop_items:
+        button_text = f"🛒 Buy {item['name']} - {item['price']} 𝓒"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"shop_buy_{item['card_id']}")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(shop_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
     listings = list(p2p_listings.find({"is_active": True}))
