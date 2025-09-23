@@ -412,9 +412,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_daily_shop_tab(query):
     """Show Daily Shop tab content"""
-    from shop import get_default_shop_items
+    from shop import get_daily_shop_items
     
-    shop_items = get_default_shop_items()
+    shop_items = get_daily_shop_items()
     
     if not shop_items:
         text = "🏪 **Daily Shop**\n\n🛒 The shop is empty! Come back later."
