@@ -1,7 +1,7 @@
 import os
 import logging
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler, PreCheckoutQueryHandler
 from dotenv import load_dotenv
 from utils import *
@@ -60,11 +60,18 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📋 Available Commands:
 /start - Start the bot
 /help - Show this message
-/shop - Explore the marketplace!
-/mysales - View your waifu sales
-/vault - View your 𝓒 balance
-/dice - Earn extra 𝓒
+/vault - View your {WISH_SYMBOL} balance
+/balance - View your {WISH_SYMBOL} balance
+/dice - Earn extra {WISH_SYMBOL} (4 times/day)
+/daily - Claim daily reward
 /buy - Purchase Wishes with Telegram Stars
+/transfer - Transfer {WISH_SYMBOL} by username
+/transferid - Transfer {WISH_SYMBOL} by user ID
+/shop - Explore the marketplace (Coming Soon)
+/market - View P2P marketplace
+/mysales - View your sales (Coming Soon)
+/history - View transaction history
+/cards - View your card collection
 
 > Note: If you encounter any issues or bugs, please report them to @CollectorAlerts.
     """
@@ -558,6 +565,31 @@ def main():
     
     # Create application
     application = Application.builder().token(BOT_TOKEN).build()
+    
+    # Set up command menu
+    async def setup_commands(application):
+        commands = [
+            BotCommand("start", "Start the bot"),
+            BotCommand("help", "Show help message"),
+            BotCommand("vault", f"View your {WISH_SYMBOL} balance"),
+            BotCommand("balance", f"View your {WISH_SYMBOL} balance"),
+            BotCommand("dice", f"Earn extra {WISH_SYMBOL} (4 times/day)"),
+            BotCommand("daily", "Claim daily reward"),
+            BotCommand("buy", "Purchase Wishes with Telegram Stars"),
+            BotCommand("transfer", f"Transfer {WISH_SYMBOL} by username"),
+            BotCommand("transferid", f"Transfer {WISH_SYMBOL} by user ID"),
+            BotCommand("shop", "Explore the marketplace"),
+            BotCommand("market", "View P2P marketplace"),
+            BotCommand("mysales", "View your sales"),
+            BotCommand("history", "View transaction history"),
+            BotCommand("cards", "View your card collection"),
+            BotCommand("sell", "Sell items on marketplace")
+        ]
+        await application.bot.set_my_commands(commands)
+        logger.info("Bot commands menu set up successfully")
+    
+    # Set up post_init to configure commands
+    application.post_init = setup_commands
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
