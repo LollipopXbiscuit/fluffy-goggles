@@ -470,6 +470,93 @@ Their new balance: {target_user['wish_balance']} {WISH_SYMBOL}
         except ValueError:
             await update.message.reply_text("Invalid input! Use numbers only.")
 
+async def remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /remove command - Owner only. Supports: /remove user_id amount OR reply to user with /remove amount"""
+    user_id = update.effective_user.id
+    
+    if user_id != OWNER_ID:
+        await update.message.reply_text("❌ This command is only available to the bot owner.")
+        return
+    
+    # Check if replying to a user's message
+    if update.message.reply_to_message:
+        # Reply format: /remove amount
+        if len(context.args) != 1:
+            await update.message.reply_text("Usage when replying: /remove amount")
+            return
+        
+        try:
+            target_user_id = update.message.reply_to_message.from_user.id
+            target_username = update.message.reply_to_message.from_user.username or "User"
+            amount = int(context.args[0])
+            
+            if amount <= 0:
+                await update.message.reply_text("Amount must be positive!")
+                return
+            
+            # Ensure target user exists
+            if not get_user(target_user_id):
+                create_user(target_user_id, target_username)
+            
+            # Check if user has enough balance
+            target_user = get_user(target_user_id)
+            if target_user['wish_balance'] < amount:
+                await update.message.reply_text(f"❌ User only has {target_user['wish_balance']} {WISH_SYMBOL}, cannot remove {amount} {WISH_SYMBOL}")
+                return
+            
+            # Remove wishes (negative amount)
+            update_user_balance(target_user_id, -amount)
+            record_transaction(target_user_id, "admin_remove", -amount, f"Admin removal from owner")
+            
+            updated_user = get_user(target_user_id)
+            success_text = f"""
+✅ **Removal Successful**
+Removed {amount} {WISH_SYMBOL} from @{target_username} (ID: {target_user_id})
+Their new balance: {updated_user['wish_balance']} {WISH_SYMBOL}
+            """
+            await update.message.reply_text(success_text)
+            
+        except ValueError:
+            await update.message.reply_text("Invalid input! Use numbers only.")
+    else:
+        # Traditional format: /remove user_id amount
+        if len(context.args) != 2:
+            await update.message.reply_text("Usage: /remove user_id amount\nOr reply to a user's message with: /remove amount")
+            return
+        
+        try:
+            target_user_id = int(context.args[0])
+            amount = int(context.args[1])
+            
+            if amount <= 0:
+                await update.message.reply_text("Amount must be positive!")
+                return
+            
+            # Ensure target user exists
+            if not get_user(target_user_id):
+                create_user(target_user_id)
+            
+            # Check if user has enough balance
+            target_user = get_user(target_user_id)
+            if target_user['wish_balance'] < amount:
+                await update.message.reply_text(f"❌ User only has {target_user['wish_balance']} {WISH_SYMBOL}, cannot remove {amount} {WISH_SYMBOL}")
+                return
+            
+            # Remove wishes (negative amount)
+            update_user_balance(target_user_id, -amount)
+            record_transaction(target_user_id, "admin_remove", -amount, f"Admin removal from owner")
+            
+            updated_user = get_user(target_user_id)
+            success_text = f"""
+✅ **Removal Successful**
+Removed {amount} {WISH_SYMBOL} from user {target_user_id}
+Their new balance: {updated_user['wish_balance']} {WISH_SYMBOL}
+            """
+            await update.message.reply_text(success_text)
+            
+        except ValueError:
+            await update.message.reply_text("Invalid input! Use numbers only.")
+
 async def refresh_shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /refreshshop command - Owner only"""
     user_id = update.effective_user.id
@@ -678,6 +765,7 @@ def main():
     application.add_handler(CommandHandler("mysales", mysales_command))
     application.add_handler(CommandHandler("history", history_command))
     application.add_handler(CommandHandler("grant", grant_command))  # Owner only command
+    application.add_handler(CommandHandler("remove", remove_command))  # Owner only command
     application.add_handler(CommandHandler("refreshshop", refresh_shop_command))  # Owner only command
     application.add_handler(CommandHandler("cards", cards_command))
     application.add_handler(CommandHandler("terms", terms_command))
