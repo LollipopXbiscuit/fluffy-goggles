@@ -1,17 +1,17 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from bson import ObjectId
-from pymongo import MongoClient
 import random
 import datetime
 
-# --- MongoDB Setup ---
-client = MongoClient("mongodb+srv://Waifubot_user:bwxaTnZSScHVoWyn@cluster0.t9feock.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")  # Replace with your Atlas URI or local Mongo URI
-db = client["waifubot"]
-master_cards = db["cards"]
-p2p_listings = db["p2p_listings"]
-users = db["users"]
-daily_shop = db["daily_shop"]
+# --- Import database connections from utils.py ---
+from utils import master_cards, p2p_listings, users, db
+
+# --- Daily shop collection ---
+if db is not None:
+    daily_shop = db.daily_shop
+else:
+    daily_shop = None
 
 # --- Rarity Mapping & Pricing ---
 RARITY_MAP = {
@@ -147,6 +147,12 @@ def buy_from_p2p(buyer_id, listing_id):
     p2p_listings.update_one({"_id": listing_id}, {"$set": {"is_active": False}})
 
     return True, listing
+
+def get_p2p_listings():
+    """Get all active P2P listings"""
+    if p2p_listings is None:
+        return []
+    return list(p2p_listings.find({"is_active": True}))
 
 # --- Telegram Handlers ---
 async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
