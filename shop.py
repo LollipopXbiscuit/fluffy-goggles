@@ -77,13 +77,12 @@ def get_daily_shop_items():
     cards = []
     for rarity_num in RARITY_ORDER:
         rarity_name, _ = RARITY_MAP[rarity_num]
-        card = master_cards.aggregate([
-            {"$match": {"rarity": rarity_name}},
-            {"$sample": {"size": 1}}
-        ])
-        card = list(card)
-        if card:
-            card = card[0]
+        # Search for uppercase rarity to match database format
+        available_cards = list(master_cards.find({"rarity": rarity_name.upper()}))
+        
+        if available_cards:
+            # Select a random card from available cards
+            card = random.choice(available_cards)
             low, high = RARITY_PRICE_RANGES[rarity_name]
             card["price"] = random.randint(low, high)
             cards.append(card)
