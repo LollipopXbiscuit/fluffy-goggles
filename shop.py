@@ -33,7 +33,7 @@ async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📺 <b>Series:</b> {item.get('series', 'Unknown')}
 💎 <b>Rarity:</b> {item['rarity']}
-💰 <b>Price:</b> {item['price']} ☆W
+💰 <b>Price:</b> {item['price']} 𝓒
 🆔 <b>ID:</b> <code>{item['card_id']}</code>
 
 ✨ Limited time offer! ✨
@@ -41,7 +41,7 @@ async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Create buy button
         keyboard = [[InlineKeyboardButton(
-            f"🛒 Buy {item['name']} - {item['price']} ☆W",
+            f"🛒 Buy {item['name']} - {item['price']} 𝓒",
             callback_data=f"shop_buy_{item['card_id']}"
         )]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -93,7 +93,10 @@ async def show_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Send individual card messages with images
     for listing in display_listings:
         # Get card details from master collection
-        card_details = master_cards.find_one({"card_id": listing['card_id']})
+        if master_cards is not None:
+            card_details = master_cards.find_one({"card_id": listing['card_id']})
+        else:
+            card_details = None
         
         if not card_details:
             # Fallback if card not found in master collection
@@ -115,7 +118,7 @@ async def show_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📺 <b>Series:</b> {card_details.get('series', 'Unknown')}
 💎 <b>Rarity:</b> {card_details['rarity']}
-💰 <b>Price:</b> {listing['price']} ☆W
+💰 <b>Price:</b> {listing['price']} 𝓒
 🆔 <b>ID:</b> <code>{listing['card_id']}</code>
 👤 <b>Seller ID:</b> {listing['seller_id']}
 
@@ -124,7 +127,7 @@ async def show_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Create buy button
         keyboard = [[InlineKeyboardButton(
-            f"🛒 Buy from Player - {listing['price']} ☆W",
+            f"🛒 Buy from Player - {listing['price']} 𝓒",
             callback_data=f"market_buy_{str(listing['_id'])}"
         )]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -173,7 +176,7 @@ async def show_user_listings(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     for listing in listings:
         text += f"🃏 **{listing['card_id']}**\n"
-        text += f"💰 Price: {listing['price']} ☆W\n"
+        text += f"💰 Price: {listing['price']} 𝓒\n"
         text += f"📅 Listed: {listing['created_at'].strftime('%m/%d/%Y')}\n\n"
         
         keyboard.append([
@@ -201,8 +204,8 @@ async def buy_from_shop_command(update: Update, context: ContextTypes.DEFAULT_TY
         success_text = f"""
 ✅ **Purchase Successful!**
 🃏 You bought **{card['name']}** ({card['rarity']})
-💰 Spent: {card['price']} ☆W
-💰 New balance: {user['wish_balance']} ☆W
+💰 Spent: {card['price']} 𝓒
+💰 New balance: {user['wish_balance']} 𝓒
 
 The card has been added to your collection! 🎉
         """
@@ -236,7 +239,7 @@ async def sell_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         success_text = f"""
 ✅ **Listing Created!**
 🃏 Card: {card_id}
-💰 Price: {price} ☆W
+💰 Price: {price} 𝓒
 🆔 Listing ID: {listing_id}
 
 Your card is now available in the marketplace! 🏪
@@ -276,8 +279,8 @@ async def buyfrom_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             success_text = f"""
 ✅ **Purchase Successful!**
 🃏 You bought **{listing_data['card_id']}**
-💰 Spent: {listing_data['price']} ☆W
-💰 New balance: {buyer['wish_balance']} ☆W
+💰 Spent: {listing_data['price']} 𝓒
+💰 New balance: {buyer['wish_balance']} 𝓒
 
 The card has been transferred to your collection! 🎉
             """
@@ -299,8 +302,8 @@ async def handle_shop_purchase(query, card_id):
         success_text = f"""
 ✅ **Purchase Successful!**
 🃏 You bought **{card['name']}** ({card['rarity']})
-💰 Spent: {card['price']} ☆W
-💰 New balance: {user['wish_balance']} ☆W
+💰 Spent: {card['price']} 𝓒
+💰 New balance: {user['wish_balance']} 𝓒
         """
         await query.edit_message_text(success_text)
     else:
@@ -319,8 +322,8 @@ async def handle_market_purchase(query, listing_id):
             success_text = f"""
 ✅ **Purchase Successful!**
 🃏 You bought **{listing['card_id']}**
-💰 Spent: {listing['price']} ☆W
-💰 New balance: {buyer['wish_balance']} ☆W
+💰 Spent: {listing['price']} 𝓒
+💰 New balance: {buyer['wish_balance']} 𝓒
             """
             await query.edit_message_text(success_text)
         else:

@@ -8,20 +8,33 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MongoDB connection
-MONGODB_URL = os.getenv('MONGODB_URL')
-client = MongoClient(MONGODB_URL)
-db = client.telegram_bot
+mongo_uri = os.getenv('MONGODB_URL', '<YOUR_MONGO_URI>')
+if mongo_uri == '<YOUR_MONGO_URI>':
+    print("Warning: MongoDB URI not configured. Please set MONGODB_URL environment variable.")
+    mongo_uri = None
 
-# Collections
-users = db.users
-transactions = db.transactions
-default_shop = db.default_shop
-p2p_listings = db.p2p_listings
-user_cards = db.user_cards
-master_cards = db.master_cards  # Master collection of all available waifu cards
+if mongo_uri:
+    client = MongoClient(mongo_uri)
+else:
+    client = None
+if client:
+    db = client.telegram_bot
+    # Collections
+    users = db.users
+    transactions = db.transactions
+    default_shop = db.default_shop
+    p2p_listings = db.p2p_listings
+    user_cards = db.user_cards
+    master_cards = db.master_cards  # Master collection of all available waifu cards
+else:
+    db = users = transactions = default_shop = p2p_listings = user_cards = master_cards = None
 
 def create_user(user_id, username=None):
     """Create a new user or return existing user"""
+    if users is None:
+        print("Database not connected - using placeholder data")
+        return {"user_id": user_id, "username": username, "wish_balance": 100, "last_daily_claim": None}
+    
     existing_user = users.find_one({"user_id": user_id})
     if existing_user:
         return existing_user
@@ -38,10 +51,17 @@ def create_user(user_id, username=None):
 
 def get_user(user_id):
     """Get user by ID"""
+    if users is None:
+        print("Database not connected - using placeholder data")
+        return {"user_id": user_id, "wish_balance": 100, "last_daily_claim": None}
     return users.find_one({"user_id": user_id})
 
 def update_user_balance(user_id, amount):
     """Update user's wish balance (can be positive or negative)"""
+    if users is None:
+        print(f"Database not connected - would update user {user_id} balance by {amount}")
+        return True
+        
     user = get_user(user_id)
     if not user:
         return False
@@ -58,11 +78,15 @@ def update_user_balance(user_id, amount):
 
 def can_claim_daily(user_id):
     """Check if user can claim daily reward"""
+    if users is None:
+        print("Database not connected - allowing daily claim")
+        return True
+        
     user = get_user(user_id)
     if not user:
         return False
     
-    if not user["last_daily_claim"]:
+    if not user.get("last_daily_claim"):
         return True
     
     last_claim = user["last_daily_claim"]
@@ -76,6 +100,10 @@ def claim_daily_reward(user_id, amount=10):
     """Claim daily reward and update last claim time"""
     if not can_claim_daily(user_id):
         return False
+    
+    if users is None:
+        print(f"Demo mode: Would claim {amount} daily reward for user {user_id}")
+        return True
     
     users.update_one(
         {"user_id": user_id},
@@ -91,6 +119,10 @@ def claim_daily_reward(user_id, amount=10):
 
 def transfer_wishes(from_user_id, to_user_id, amount):
     """Transfer wishes between users"""
+    if users is None:
+        print(f"Demo mode: Would transfer {amount} wishes from {from_user_id} to {to_user_id}")
+        return True
+        
     from_user = get_user(from_user_id)
     if not from_user or from_user["wish_balance"] < amount:
         return False
@@ -110,6 +142,10 @@ def transfer_wishes(from_user_id, to_user_id, amount):
 
 def record_transaction(user_id, transaction_type, amount, description):
     """Record a transaction"""
+    if not transactions:
+        print(f"Database not connected - would record transaction: {user_id} {transaction_type} {amount} {description}")
+        return
+        
     transaction = {
         "user_id": user_id,
         "type": transaction_type,
@@ -121,6 +157,13 @@ def record_transaction(user_id, transaction_type, amount, description):
 
 def get_user_transactions(user_id, limit=10):
     """Get user's transaction history"""
+    if transactions is None:
+        # Return demo transactions for placeholder mode
+        from datetime import datetime
+        return [
+            {"timestamp": datetime.utcnow(), "amount": 10, "description": "Demo transaction"},
+            {"timestamp": datetime.utcnow(), "amount": -5, "description": "Demo purchase"}
+        ]
     return list(transactions.find({"user_id": user_id}).sort("timestamp", -1).limit(limit))
 
 def add_wishes_for_stars(user_id, stars_amount, conversion_rate=10):

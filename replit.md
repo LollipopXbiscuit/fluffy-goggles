@@ -1,6 +1,6 @@
 # Overview
 
-WishBot is a comprehensive Telegram bot featuring a custom currency system called "Wish" (☆W) with integrated marketplace functionality. Users can earn, transfer, and spend wishes on waifu cards through both a daily shop and peer-to-peer marketplace. The bot includes Telegram Stars integration for purchasing wishes and connects to MongoDB for persistent data storage.
+WishBot is a comprehensive Telegram bot featuring a custom currency system called "Wish" (𝓒) with integrated marketplace functionality. Users can earn, transfer, and spend wishes on waifu cards through both a daily shop and peer-to-peer marketplace. The bot includes Telegram Stars integration for purchasing wishes and connects to MongoDB for persistent data storage.
 
 # User Preferences
 
@@ -20,7 +20,7 @@ Preferred communication style: Simple, everyday language.
 - **Transaction safety**: Prevents negative balances and validates card ownership before transfers
 
 ## Currency System
-- **Custom Wish currency (☆W)**: Internal bot currency for purchasing cards
+- **Custom Wish currency (𝓒)**: Internal bot currency for purchasing cards
 - **Daily rewards**: 24-hour cooldown system for free wish claims
 - **Transfer system**: Send wishes between users via username or user ID
 - **Transaction history**: Complete audit trail of all currency movements

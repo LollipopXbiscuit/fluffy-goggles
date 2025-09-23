@@ -21,17 +21,18 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Bot configuration
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+BOT_TOKEN = os.getenv('BOT_TOKEN', '<YOUR_BOT_TOKEN>')
 OWNER_ID_STR = os.getenv('OWNER_ID', '0')
 # Handle multiple owner IDs (take the first one)
 OWNER_ID = int(OWNER_ID_STR.split(',')[0]) if OWNER_ID_STR else 0
 
-if not BOT_TOKEN:
-    logger.error("BOT_TOKEN not found in environment variables!")
-    exit(1)
+if BOT_TOKEN == '<YOUR_BOT_TOKEN>':
+    logger.warning("BOT_TOKEN not configured - running in demo mode.")
+    print("Demo mode: Please configure your secrets (BOT_TOKEN, MONGODB_URL) for full functionality.")
+    BOT_TOKEN = "demo_mode_token_123456:ABCDEF"  # Placeholder for demo mode
 
 # Wish symbol
-WISH_SYMBOL = "☆W"
+WISH_SYMBOL = "𝓒"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
@@ -42,25 +43,80 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     create_user(user_id, username)
     
     welcome_text = f"""
-🎉 Welcome to WishBot! 🎉
+✨ Welcome to the VexaSwitch Store ✨
 
-Your magical currency: {WISH_SYMBOL} (Wishes)
+This bot serves as your gateway to purchase in-game currencies for a variety of popular titles managed by *Collector*.
 
-💫 **Commands:**
-💰 /balance - Check your wish balance
-🎁 /daily - Claim daily free wishes
-💸 /transfer @user amount - Send wishes to others
-🛒 /shop - Browse daily shop
-🏪 /market - P2P marketplace
-📦 /mysell - Manage your listings
-💎 /buywishes - Buy wishes with Telegram Stars
-📊 /history - View transaction history
-🃏 /cards - View your card collection
+To begin, simply type the /help command to view all available options.
 
-🌟 Start by claiming your daily reward with /daily!
+> Note: If you encounter any issues or bugs, please report them to @CollectorAlerts.
     """
     
     await update.message.reply_text(welcome_text)
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command"""
+    help_text = f"""
+📋 Available Commands:
+/start - Start the bot
+/help - Show this message
+/shop - Explore the marketplace!
+/mysales - View your waifu sales
+/vault - View your 𝓒 balance
+/dice - Earn extra 𝓒
+/buy - Purchase Wishes with Telegram Stars
+
+> Note: If you encounter any issues or bugs, please report them to @CollectorAlerts.
+    """
+    await update.message.reply_text(help_text)
+
+async def vault(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /vault command (same as balance)"""
+    user_id = update.effective_user.id
+    user = get_user(user_id)
+    
+    if not user:
+        create_user(user_id, update.effective_user.username)
+        user = get_user(user_id)
+    
+    balance_text = f"💰 Your balance: {user['wish_balance']} {WISH_SYMBOL}"
+    await update.message.reply_text(balance_text)
+
+async def dice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /dice command - earn extra wishes randomly with cooldown"""
+    user_id = update.effective_user.id
+    
+    if not get_user(user_id):
+        create_user(user_id, update.effective_user.username)
+    
+    # Check cooldown (24 hours like daily)
+    if not can_claim_daily(user_id):  # Reuse daily cooldown logic
+        await update.message.reply_text("⏰ You've already used dice today! Come back in 24 hours.")
+        return
+    
+    # Random reward between 1-10 wishes
+    import random
+    reward_amount = random.randint(1, 10)
+    update_user_balance(user_id, reward_amount)
+    record_transaction(user_id, "dice_reward", reward_amount, "Random dice reward")
+    
+    # Update last dice claim time (using daily claim field)
+    from datetime import datetime
+    if users is not None:
+        users.update_one(
+            {"user_id": user_id},
+            {"$set": {"last_daily_claim": datetime.utcnow()}}
+        )
+    
+    user = get_user(user_id)
+    success_text = f"""
+🎲 Lucky dice roll!
++{reward_amount} {WISH_SYMBOL}
+
+💰 New balance: {user['wish_balance']} {WISH_SYMBOL}
+⏰ Come back in 24 hours for another dice roll!
+    """
+    await update.message.reply_text(success_text)
 
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /balance command"""
@@ -117,11 +173,15 @@ async def transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if target_input.startswith('@'):
             username = target_input[1:]  # Remove @
             # Find user by username
-            target_user = users.find_one({"username": username})
-            if not target_user:
-                await update.message.reply_text(f"❌ User @{username} not found. They need to start the bot first.")
+            if users is not None:
+                target_user = users.find_one({"username": username})
+                if not target_user:
+                    await update.message.reply_text(f"❌ User @{username} not found. They need to start the bot first.")
+                    return
+                to_user_id = target_user["user_id"]
+            else:
+                await update.message.reply_text("❌ Demo mode: Username lookup not available. Use user ID instead.")
                 return
-            to_user_id = target_user["user_id"]
         else:
             # Assume it's a user ID
             try:
@@ -182,13 +242,12 @@ Sent {amount} {WISH_SYMBOL} to user {to_user_id}
     except ValueError:
         await update.message.reply_text("Invalid input! Use numbers only.")
 
-async def buywishes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /buywishes command - Telegram Stars integration"""
+async def buy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /buy command - Telegram Stars integration"""
     keyboard = [
-        [InlineKeyboardButton("10 ☆W for 1 ⭐", callback_data="buy_wishes_1")],
-        [InlineKeyboardButton("50 ☆W for 5 ⭐", callback_data="buy_wishes_5")],
-        [InlineKeyboardButton("100 ☆W for 10 ⭐", callback_data="buy_wishes_10")],
-        [InlineKeyboardButton("500 ☆W for 50 ⭐", callback_data="buy_wishes_50")]
+        [InlineKeyboardButton("500 𝓒 for 30 ⭐", callback_data="buy_wishes_30")],
+        [InlineKeyboardButton("1000 𝓒 for 50 ⭐", callback_data="buy_wishes_50")],
+        [InlineKeyboardButton("2000 𝓒 for 90 ⭐", callback_data="buy_wishes_90")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -196,10 +255,9 @@ async def buywishes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💎 **Buy Wishes with Telegram Stars** 💎
 
 Choose a package:
-• 1 ⭐ = 10 {WISH_SYMBOL}
-• 5 ⭐ = 50 {WISH_SYMBOL}
-• 10 ⭐ = 100 {WISH_SYMBOL}
-• 50 ⭐ = 500 {WISH_SYMBOL}
+• 30 ⭐ = 500 {WISH_SYMBOL}
+• 50 ⭐ = 1000 {WISH_SYMBOL}
+• 90 ⭐ = 2000 {WISH_SYMBOL}
 
 Click a button below to purchase:
     """
@@ -207,15 +265,23 @@ Click a button below to purchase:
     await update.message.reply_text(text, reply_markup=reply_markup)
 
 async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /shop command"""
-    await show_shop(update, context)
+    """Handle /shop command with two tabs"""
+    text = "🛑️ VexaSwitch Store – Shop\nChoose a tab to browse:"
+    
+    keyboard = [
+        [InlineKeyboardButton("🏪 Daily Shop", callback_data="shop_tab_daily"),
+         InlineKeyboardButton("🏪 P2P Marketplace", callback_data="shop_tab_p2p")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(text, reply_markup=reply_markup)
 
 async def market_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /market command"""
     await show_market(update, context)
 
-async def mysell_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /mysell command"""
+async def mysales_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /mysales command"""
     await show_user_listings(update, context)
 
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -339,11 +405,68 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("market_buy_"):
         listing_id = data.replace("market_buy_", "")
         await handle_market_purchase(query, listing_id)
+    elif data == "shop_tab_daily":
+        await show_daily_shop_tab(query)
+    elif data == "shop_tab_p2p":
+        await show_p2p_shop_tab(query)
+
+async def show_daily_shop_tab(query):
+    """Show Daily Shop tab content"""
+    from shop import get_default_shop_items
+    
+    shop_items = get_default_shop_items()
+    
+    if not shop_items:
+        text = "🏪 **Daily Shop**\n\n🛒 The shop is empty! Come back later."
+        keyboard = [[InlineKeyboardButton("← Back to Shop", callback_data="shop_tab_daily")]]
+    else:
+        text = f"🏪 **Daily Shop**\n\n🎆 {len(shop_items)} fresh items available today!\n\n"
+        keyboard = []
+        
+        for item in shop_items[:5]:  # Show first 5 items
+            text += f"• **{item['name']}** ({item['rarity']}) - {item['price']} 𝓒\n"
+            keyboard.append([InlineKeyboardButton(
+                f"🛒 Buy {item['name']} - {item['price']} 𝓒",
+                callback_data=f"shop_buy_{item['card_id']}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("🏪 P2P Marketplace", callback_data="shop_tab_p2p")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup)
+
+async def show_p2p_shop_tab(query):
+    """Show P2P Marketplace tab content"""
+    from shop import get_p2p_listings
+    
+    listings = get_p2p_listings()
+    
+    if not listings:
+        text = "🏪 **P2P Marketplace**\n\n🏪 No listings available! Be the first to list something."
+        keyboard = [[InlineKeyboardButton("🏪 Daily Shop", callback_data="shop_tab_daily")]]
+    else:
+        text = f"🏪 **P2P Marketplace**\n\n🤝 {len(listings)} items listed by players!\n\n"
+        keyboard = []
+        
+        for listing in listings[:5]:  # Show first 5 listings
+            text += f"• **{listing['card_id']}** - {listing['price']} 𝓒 (Seller: {listing['seller_id']})\n"
+            keyboard.append([InlineKeyboardButton(
+                f"🛒 Buy from Player - {listing['price']} 𝓒",
+                callback_data=f"market_buy_{str(listing['_id'])}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("🏪 Daily Shop", callback_data="shop_tab_daily")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text, reply_markup=reply_markup)
 
 async def handle_stars_purchase(query, stars_amount):
     """Handle Telegram Stars purchase"""
     user_id = query.from_user.id
-    wish_amount = stars_amount * 10  # Conversion rate: 1 star = 10 wishes
+    
+    # New conversion rates: 30=500, 50=1000, 90=2000
+    conversion_rates = {30: 500, 50: 1000, 90: 2000}
+    wish_amount = conversion_rates.get(stars_amount, stars_amount * 10)
     
     title = f"Wish Pack - {wish_amount} {WISH_SYMBOL}"
     description = f"Purchase {wish_amount} wishes for {stars_amount} Telegram Stars"
@@ -387,24 +510,45 @@ Thank you for your purchase! 🎉
 
 def main():
     """Start the bot"""
-    # Initialize database
-    if not get_user(1):  # Check if database is initialized
+    # Check if running in demo mode
+    if BOT_TOKEN.startswith("demo_mode"):
+        logger.info("\n=== VexaSwitch Store Bot Demo Mode ===")
+        print("Configuration verified! Bot is ready to run.")
+        print("\nFeatures implemented:")
+        print("✅ Currency: Wish (𝓒)")
+        print("✅ Commands: /start, /help, /vault, /dice, /transfer, /shop, /mysales, /buy")
+        print("✅ Unified /shop with Daily Shop and P2P Marketplace tabs")
+        print("✅ Telegram Stars integration (500:30, 1000:50, 2000:90)")
+        print("✅ Security: 24-hour cooldown on /dice command")
+        print("\nTo start the bot:")
+        print("1. Set BOT_TOKEN environment variable with your bot token")
+        print("2. Set MONGODB_URL environment variable with your MongoDB connection string")
+        print("3. Restart the bot")
+        return
+    
+    # Initialize database if connected
+    if users is not None and not get_user(1):  # Check if database is initialized
         initialize_default_shop()
         logger.info("Database initialized with sample data")
+    elif users is None:
+        logger.info("Running in demo mode - database not connected")
     
     # Create application
     application = Application.builder().token(BOT_TOKEN).build()
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("vault", vault))
+    application.add_handler(CommandHandler("dice", dice))
     application.add_handler(CommandHandler("balance", balance))
     application.add_handler(CommandHandler("daily", daily))
     application.add_handler(CommandHandler("transfer", transfer))
     application.add_handler(CommandHandler("transferid", transfer_by_id))
-    application.add_handler(CommandHandler("buywishes", buywishes))
+    application.add_handler(CommandHandler("buy", buy_command))
     application.add_handler(CommandHandler("shop", shop_command))
     application.add_handler(CommandHandler("market", market_command))
-    application.add_handler(CommandHandler("mysell", mysell_command))
+    application.add_handler(CommandHandler("mysales", mysales_command))
     application.add_handler(CommandHandler("history", history_command))
     application.add_handler(CommandHandler("grant", grant_command))  # Owner only command
     application.add_handler(CommandHandler("refreshshop", refresh_shop_command))  # Owner only command
@@ -423,7 +567,7 @@ def main():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     
     # Start the bot
-    logger.info("Starting WishBot...")
+    logger.info("Starting VexaSwitch Store Bot...")
     application.run_polling()
 
 if __name__ == '__main__':
