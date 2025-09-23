@@ -555,9 +555,7 @@ def main():
     application.add_handler(CommandHandler("cards", cards_command))
     
     # Shop-related handlers (from shop.py)
-    application.add_handler(CommandHandler("buy", buy_from_shop_command))
     application.add_handler(CommandHandler("sell", sell_command))
-    application.add_handler(CommandHandler("buyfrom", buyfrom_command))
     
     # Callback handlers
     application.add_handler(CallbackQueryHandler(button_handler))

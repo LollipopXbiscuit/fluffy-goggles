@@ -142,7 +142,7 @@ def transfer_wishes(from_user_id, to_user_id, amount):
 
 def record_transaction(user_id, transaction_type, amount, description):
     """Record a transaction"""
-    if not transactions:
+    if transactions is None:
         print(f"Database not connected - would record transaction: {user_id} {transaction_type} {amount} {description}")
         return
         
