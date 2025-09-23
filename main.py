@@ -336,39 +336,71 @@ async def cards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(cards_text)
 
 async def grant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /grant command - Owner only"""
+    """Handle /grant command - Owner only. Supports: /grant user_id amount OR reply to user with /grant amount"""
     user_id = update.effective_user.id
     
     if user_id != OWNER_ID:
         await update.message.reply_text("❌ This command is only available to the bot owner.")
         return
     
-    if len(context.args) != 2:
-        await update.message.reply_text("Usage: /grant user_id amount")
-        return
-    
-    try:
-        target_user_id = int(context.args[0])
-        amount = int(context.args[1])
+    # Check if replying to a user's message
+    if update.message.reply_to_message:
+        # Reply format: /grant amount
+        if len(context.args) != 1:
+            await update.message.reply_text("Usage when replying: /grant amount")
+            return
         
-        # Ensure target user exists
-        if not get_user(target_user_id):
-            create_user(target_user_id)
+        try:
+            target_user_id = update.message.reply_to_message.from_user.id
+            target_username = update.message.reply_to_message.from_user.username or "User"
+            amount = int(context.args[0])
+            
+            # Ensure target user exists
+            if not get_user(target_user_id):
+                create_user(target_user_id, target_username)
+            
+            # Grant wishes
+            update_user_balance(target_user_id, amount)
+            record_transaction(target_user_id, "admin_grant", amount, f"Admin grant from owner")
+            
+            target_user = get_user(target_user_id)
+            success_text = f"""
+✅ **Grant Successful**
+Granted {amount} {WISH_SYMBOL} to @{target_username} (ID: {target_user_id})
+Their new balance: {target_user['wish_balance']} {WISH_SYMBOL}
+            """
+            await update.message.reply_text(success_text)
+            
+        except ValueError:
+            await update.message.reply_text("Invalid input! Use numbers only.")
+    else:
+        # Traditional format: /grant user_id amount
+        if len(context.args) != 2:
+            await update.message.reply_text("Usage: /grant user_id amount\nOr reply to a user's message with: /grant amount")
+            return
         
-        # Grant wishes
-        update_user_balance(target_user_id, amount)
-        record_transaction(target_user_id, "admin_grant", amount, f"Admin grant from owner")
-        
-        target_user = get_user(target_user_id)
-        success_text = f"""
+        try:
+            target_user_id = int(context.args[0])
+            amount = int(context.args[1])
+            
+            # Ensure target user exists
+            if not get_user(target_user_id):
+                create_user(target_user_id)
+            
+            # Grant wishes
+            update_user_balance(target_user_id, amount)
+            record_transaction(target_user_id, "admin_grant", amount, f"Admin grant from owner")
+            
+            target_user = get_user(target_user_id)
+            success_text = f"""
 ✅ **Grant Successful**
 Granted {amount} {WISH_SYMBOL} to user {target_user_id}
 Their new balance: {target_user['wish_balance']} {WISH_SYMBOL}
-        """
-        await update.message.reply_text(success_text)
-        
-    except ValueError:
-        await update.message.reply_text("Invalid input! Use numbers only.")
+            """
+            await update.message.reply_text(success_text)
+            
+        except ValueError:
+            await update.message.reply_text("Invalid input! Use numbers only.")
 
 async def refresh_shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /refreshshop command - Owner only"""
@@ -423,8 +455,8 @@ async def show_daily_shop_tab(query):
         text = f"🏪 **Daily Shop**\n\n🎆 {len(shop_items)} fresh items available today!\n\n"
         keyboard = []
         
-        for item in shop_items[:5]:  # Show first 5 items
-            text += f"• **{item['name']}** ({item['rarity']}) - {item['price']} 𝓒\n"
+        for item in shop_items[:8]:  # Show all 8 items (Common to Zenith)
+            text += f"• **{item['name']}** ({item['rarity']}) - {item['price']} 𝓒 - ID: `{item['card_id']}`\n"
             keyboard.append([InlineKeyboardButton(
                 f"🛒 Buy {item['name']} - {item['price']} 𝓒",
                 callback_data=f"shop_buy_{item['card_id']}"
