@@ -117,6 +117,23 @@ def claim_daily_reward(user_id, amount=10):
     record_transaction(user_id, "daily_reward", amount, "Daily reward claim")
     return True
 
+def reset_all_vaults():
+    """Reset all users' wish balances to 0"""
+    if users is None:
+        print("Database not connected - cannot reset vaults")
+        return False
+    
+    try:
+        result = users.update_many(
+            {},  # Empty filter to match all documents
+            {"$set": {"wish_balance": 0}}
+        )
+        print(f"Reset {result.modified_count} user vaults to 0")
+        return True
+    except Exception as e:
+        print(f"Error resetting vaults: {e}")
+        return False
+
 def transfer_wishes(from_user_id, to_user_id, amount):
     """Transfer wishes between users"""
     if users is None:
