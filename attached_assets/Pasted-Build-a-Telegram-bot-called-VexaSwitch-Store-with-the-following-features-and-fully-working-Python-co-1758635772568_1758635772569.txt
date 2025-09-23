@@ -1,0 +1,131 @@
+Build a Telegram bot called VexaSwitch Store with the following features and fully working Python code. The bot should be structured for easy deployment on Replit. Secrets (bot token, payment token, MongoDB URI) will be added manually by the user later.
+
+1. Currency: Wish (𝓒)
+
+All balances, shop prices, and rewards use the 𝓒 symbol.
+
+Commands:
+
+/vault → shows user’s current Wish balance
+
+/dice → earn extra Wishes randomly
+
+/transfer @user <amount> → send Wishes to another user
+
+
+Buying Wishes uses Telegram Stars and defined packs (500:30, 1000:50, 2000:90).
+
+
+2. Welcome & Help Messages
+
+Welcome:
+
+
+✨ Welcome to the VexaSwitch Store ✨
+
+This bot serves as your gateway to purchase in-game currencies for a variety of popular titles managed by *Collector*.
+
+To begin, simply type the /help command to view all available options.
+
+> Note: If you encounter any issues or bugs, please report them to @CollectorAlerts.
+
+Help / Commands:
+
+
+📜 Available Commands:
+/start - Start the bot
+/help - Show this message
+/shop - Explore the marketplace!
+/mysales - View your waifu sales
+/vault - View your 𝓒 balance
+/dice - Earn extra 𝓒
+/buy - Purchase Wishes with Telegram Stars
+
+> Note: If you encounter any issues or bugs, please report them to @CollectorAlerts.
+
+3. Database – MongoDB
+
+Use MongoDB for persistent storage. Collections:
+
+users: stores user ID, Wish balance, etc.
+
+cards: card information and ownership
+
+default_shop: daily shop items
+
+p2p_listings: user marketplace listings
+
+
+Include sample placeholder connection string in code (mongo_uri = "<YOUR_MONGO_URI>") which the user will replace.
+
+
+4. /shop Command – Two Tabs with Inline Buttons
+
+/shop message:
+
+
+🛍️ VexaSwitch Store – Shop
+Choose a tab to browse:
+
+Inline keyboard top row: [ Daily Shop ] [ P2P Marketplace ]
+
+Daily Shop Tab:
+
+Shows daily items from default_shop with thumbnail, name, price in 𝓒, and inline Buy button.
+
+Refreshes every 24 hours.
+
+
+P2P Marketplace Tab:
+
+Shows user listings with seller username, card name, price in 𝓒, and inline Buy button.
+
+
+Switching tabs edits the same message in place. Optional highlight active tab.
+
+
+5. P2P Commands & Features
+
+/mysales → shows all cards the user has for sale with inline buttons to Remove/Edit price.
+
+/sell <card_id> <price> → list a card for sale.
+
+Buying automatically transfers card ownership in MongoDB.
+
+
+6. Telegram Stars Integration
+
+/buy command sends invoices using placeholder payment token (payment_token = "<YOUR_PAYMENT_TOKEN>").
+
+Credits Wishes automatically upon successful payment.
+
+
+7. Inline Keyboard & UI Design
+
+Main menu buttons: 🛒 Shop, 📦 My Listings, 💰 Vault, 💵 Buy Wishes, 🔁 Transfer.
+
+Shop and P2P items: thumbnail, card name, price in 𝓒, Buy/List buttons.
+
+UI design and behavior should mimic @IACMarketplaceBot.
+
+
+8. File Structure & Deliverables
+
+Provide main.py, utils.py, shop.py, and requirements.txt.
+
+Include placeholder MongoDB connection and payment token references to be replaced by the user.
+
+Include example initial database documents for testing Daily Shop and P2P Marketplace.
+
+
+9. Notes for AI Generation
+
+Use callback queries for tab switching and Buy buttons.
+
+Purchases must update MongoDB balances/cards automatically.
+
+Ensure /shop allows seamless switching between Daily and P2P tabs in a single message.
+
+Use 𝓒 consistently for all currency displays.
+
+Include proper error handling (insufficient balance, card not found, payment failure).
