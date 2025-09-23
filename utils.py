@@ -42,8 +42,10 @@ def create_user(user_id, username=None):
     user_data = {
         "user_id": user_id,
         "username": username,
-        "wish_balance": 0,
+        "wish_balance": 200,
         "last_daily_claim": None,
+        "dice_uses_today": 0,
+        "last_dice_reset": datetime.utcnow().date().isoformat(),
         "created_at": datetime.utcnow()
     }
     users.insert_one(user_data)
