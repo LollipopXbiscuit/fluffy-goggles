@@ -376,7 +376,7 @@ Terms may be updated at any time. Continued use constitutes acceptance of new te
 **8. Contact**
 For questions or disputes, use /support command.
 
-*Last updated: {datetime.now().strftime("%B %Y")}*
+*Last updated: {datetime.utcnow().strftime("%B %Y")}*
 *By using this bot, you agree to these terms.*
     """
     await update.message.reply_text(terms_text)

@@ -3,8 +3,6 @@ from telebot import types
 from config import TOKEN
 from database import init_db, save_payment, get_photo_id
 import os
-from telegram import Update, LabeledPrice, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 if not TOKEN:
     print("❌ Error: TOKEN environment variable is required!")
@@ -139,7 +137,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # Example Replit bot setup
-if name == "main":
+if __name__ == "__main__":
     app = ApplicationBuilder().token(os.environ.get("BOT_TOKEN")).build()
 
     app.add_handler(CommandHandler("buywishes", buywishes))
