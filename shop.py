@@ -63,7 +63,7 @@ def get_rarity_color_text(rarity):
 def get_user(user_id):
     user = users.find_one({"user_id": user_id})
     if not user:
-        user = {"user_id": user_id, "wish_balance": 1000, "collection": []}
+        user = {"user_id": user_id, "wish_balance": 50, "collection": []}
         users.insert_one(user)
     return user
 
