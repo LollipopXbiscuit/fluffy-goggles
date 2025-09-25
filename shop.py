@@ -60,15 +60,12 @@ def get_rarity_color_text(rarity):
     }
     return colors.get(rarity, "<i>Mysterious</i>")
 
-def get_user(user_id):
-    user = users.find_one({"user_id": user_id})
-    if not user:
-        user = {"user_id": user_id, "wish_balance": 50, "collection": []}
-        users.insert_one(user)
-    return user
+# Use utils.get_user and utils.create_user instead of duplicating user creation logic
 
 # --- Shop Logic ---
 def get_daily_shop_items():
+    if daily_shop is None:
+        return []  # Demo mode - no database available
     today = datetime.date.today().isoformat()
     shop = daily_shop.find_one({"date": today})
     if shop:
@@ -95,7 +92,11 @@ def get_daily_shop_items():
     return cards
 
 def buy_from_default_shop(user_id, card_id):
+    from utils import get_user, create_user
     user = get_user(user_id)
+    if not user:
+        create_user(user_id)
+        user = get_user(user_id)
     today = datetime.date.today().isoformat()
     shop = daily_shop.find_one({"date": today})
     if not shop:
@@ -116,7 +117,11 @@ def buy_from_default_shop(user_id, card_id):
 
 # --- P2P Logic ---
 def create_p2p_listing(user_id, card_id, price):
+    from utils import get_user, create_user
     user = get_user(user_id)
+    if not user:
+        create_user(user_id)
+        user = get_user(user_id)
     if card_id not in user.get("collection", []):
         return None, "You don't own this card."
 
@@ -131,12 +136,21 @@ def create_p2p_listing(user_id, card_id, price):
     return result.inserted_id, "Success"
 
 def buy_from_p2p(buyer_id, listing_id):
+    if p2p_listings is None:
+        return False, "P2P marketplace not available in demo mode."
     listing = p2p_listings.find_one({"_id": listing_id, "is_active": True})
     if not listing:
         return False, "Listing not found."
 
+    from utils import get_user, create_user
     buyer = get_user(buyer_id)
+    if not buyer:
+        create_user(buyer_id)
+        buyer = get_user(buyer_id)
     seller = get_user(listing['seller_id'])
+    if not seller:
+        create_user(listing['seller_id'])
+        seller = get_user(listing['seller_id'])
     if buyer['wish_balance'] < listing['price']:
         return False, "Not enough currency."
 
@@ -184,6 +198,9 @@ async def show_shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(shop_text, reply_markup=reply_markup, parse_mode='Markdown')
 
 async def show_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if p2p_listings is None:
+        await update.message.reply_text("🏪 **P2P Marketplace**\n\n⚠️ Marketplace is not available in demo mode. Please configure MONGODB_URL to enable trading features.")
+        return
     listings = list(p2p_listings.find({"is_active": True}))
     if not listings:
         await update.message.reply_text("🏪 The marketplace is empty! Be the first to list something with /sell.")
@@ -232,6 +249,7 @@ async def sell_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Invalid price!")
 
 async def handle_shop_purchase(query, card_id):
+    from utils import get_user
     user_id = query.from_user.id
     success, result = buy_from_default_shop(user_id, card_id)
     if success:
@@ -243,6 +261,7 @@ async def handle_shop_purchase(query, card_id):
 
 async def handle_market_purchase(query, listing_id):
     try:
+        from utils import get_user
         buyer_id = query.from_user.id
         object_id = ObjectId(listing_id)
         success, result = buy_from_p2p(buyer_id, object_id)
