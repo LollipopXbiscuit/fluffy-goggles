@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: vexaswitch-bot
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: BOT_TOKEN
+        sync: false
+      - key: MONGODB_URL
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: OWNER_ID
+        sync: false
