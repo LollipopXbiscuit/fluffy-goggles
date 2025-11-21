@@ -739,8 +739,14 @@ def webhook():
         update_data = request.get_json(force=True)
         update = Update.de_json(update_data, application.bot)
         
-        # Process update
-        asyncio.run(application.process_update(update))
+        # Process update in asyncio event loop
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(application.process_update(update))
+        finally:
+            loop.close()
         
         return Response(status=200)
     except Exception as e:
@@ -850,10 +856,15 @@ def initialize_bot():
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     
-    # Initialize bot application
-    asyncio.run(application.initialize())
-    asyncio.run(setup_commands())
-    asyncio.run(setup_webhook())
+    # Initialize bot application using a new event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(application.initialize())
+        loop.run_until_complete(setup_commands())
+        loop.run_until_complete(setup_webhook())
+    finally:
+        loop.close()
     
     logger.info(f"VexaSwitch Store Bot initialized and ready on port {PORT}")
     print(f"\n✅ Bot is running on http://0.0.0.0:{PORT}")
