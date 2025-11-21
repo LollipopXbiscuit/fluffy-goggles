@@ -1,11 +1,13 @@
 import os
 import logging
 from datetime import datetime
+from flask import Flask, request, Response
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler, PreCheckoutQueryHandler
 from dotenv import load_dotenv
 from utils import *
 from shop import *
+import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -26,13 +28,23 @@ OWNER_ID_STR = os.getenv('OWNER_ID', '0')
 # Handle multiple owner IDs (take the first one)
 OWNER_ID = int(OWNER_ID_STR.split(',')[0]) if OWNER_ID_STR else 0
 
+# Webhook configuration
+WEBHOOK_URL = os.getenv('WEBHOOK_URL', '')  # Your Render URL + /webhook
+PORT = int(os.getenv('PORT', 8080))  # Render uses PORT env variable
+
 if BOT_TOKEN == '<YOUR_BOT_TOKEN>':
     logger.warning("BOT_TOKEN not configured - running in demo mode.")
-    print("Demo mode: Please configure your secrets (BOT_TOKEN, MONGODB_URL) for full functionality.")
+    print("Demo mode: Please configure your secrets (BOT_TOKEN, MONGODB_URL, WEBHOOK_URL) for full functionality.")
     BOT_TOKEN = "demo_mode_token_123456:ABCDEF"  # Placeholder for demo mode
 
 # Wish symbol
 WISH_SYMBOL = "𝓒"
+
+# Create Flask app
+app = Flask(__name__)
+
+# Create telegram application
+application = Application.builder().token(BOT_TOKEN).updater(None).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
@@ -695,8 +707,92 @@ Thank you for your purchase! 🎉
         """
         await update.message.reply_text(success_text)
 
-def main():
-    """Start the bot"""
+# Flask routes
+@app.route('/')
+def health_check():
+    """Health check endpoint for Render"""
+    message_count = get_message_count()
+    return {
+        'status': 'ok',
+        'bot': 'VexaSwitch Store Bot',
+        'message_count': message_count,
+        'timestamp': datetime.utcnow().isoformat()
+    }
+
+@app.route('/stats')
+def stats():
+    """Stats endpoint to show bot activity"""
+    message_count = get_message_count()
+    return {
+        'message_count': message_count,
+        'status': 'Bot is awake and processing messages'
+    }
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Handle incoming webhook updates from Telegram"""
+    try:
+        # Increment message count to track activity
+        increment_message_count()
+        
+        # Get update from request
+        update_data = request.get_json(force=True)
+        update = Update.de_json(update_data, application.bot)
+        
+        # Process update
+        asyncio.run(application.process_update(update))
+        
+        return Response(status=200)
+    except Exception as e:
+        logger.error(f"Error processing webhook: {e}")
+        return Response(status=500)
+
+async def setup_webhook():
+    """Set up webhook for the bot"""
+    if not WEBHOOK_URL:
+        logger.error("WEBHOOK_URL not set! Cannot configure webhook.")
+        print("\n⚠️  WEBHOOK_URL environment variable is not set!")
+        print("Please set WEBHOOK_URL to your Render URL + /webhook")
+        print("Example: https://your-app.onrender.com/webhook\n")
+        return False
+    
+    webhook_url = f"{WEBHOOK_URL}"
+    
+    try:
+        await application.bot.set_webhook(url=webhook_url)
+        logger.info(f"Webhook set to: {webhook_url}")
+        print(f"✅ Webhook configured: {webhook_url}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to set webhook: {e}")
+        return False
+
+async def setup_commands():
+    """Set up bot command menu"""
+    commands = [
+        BotCommand("start", "Start the bot"),
+        BotCommand("help", "Show help message"),
+        BotCommand("vault", f"View your {WISH_SYMBOL} balance"),
+        BotCommand("balance", f"View your {WISH_SYMBOL} balance"),
+        BotCommand("dice", f"Earn extra {WISH_SYMBOL} (4 times/day)"),
+        BotCommand("daily", "Claim daily reward"),
+        BotCommand("buy", "Purchase Wishes with Telegram Stars"),
+        BotCommand("transfer", f"Transfer {WISH_SYMBOL} by username"),
+        BotCommand("transferid", f"Transfer {WISH_SYMBOL} by user ID"),
+        BotCommand("shop", "Explore the marketplace"),
+        BotCommand("market", "View P2P marketplace"),
+        BotCommand("mysales", "View your sales"),
+        BotCommand("history", "View transaction history"),
+        BotCommand("cards", "View your card collection"),
+        BotCommand("sell", "Sell items on marketplace"),
+        BotCommand("terms", "View Terms of Service"),
+        BotCommand("support", "Get support help")
+    ]
+    await application.bot.set_my_commands(commands)
+    logger.info("Bot commands menu set up successfully")
+
+def initialize_bot():
+    """Initialize bot handlers and webhook"""
     # Check if running in demo mode
     if BOT_TOKEN.startswith("demo_mode"):
         logger.info("\n=== VexaSwitch Store Bot Demo Mode ===")
@@ -707,10 +803,13 @@ def main():
         print("✅ Unified /shop with Daily Shop and P2P Marketplace tabs")
         print("✅ Telegram Stars integration (500:30, 1000:50, 2000:90)")
         print("✅ Security: 24-hour cooldown on /dice command")
+        print("✅ Webhook mode for 24/7 deployment")
+        print("✅ Message counting system")
         print("\nTo start the bot:")
         print("1. Set BOT_TOKEN environment variable with your bot token")
         print("2. Set MONGODB_URL environment variable with your MongoDB connection string")
-        print("3. Restart the bot")
+        print("3. Set WEBHOOK_URL environment variable with your webhook URL")
+        print("4. Restart the bot")
         return
     
     # Initialize database if connected
@@ -719,36 +818,6 @@ def main():
         logger.info("Database initialized with sample data")
     elif users is None:
         logger.info("Running in demo mode - database not connected")
-    
-    # Create application
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Set up command menu
-    async def setup_commands(application):
-        commands = [
-            BotCommand("start", "Start the bot"),
-            BotCommand("help", "Show help message"),
-            BotCommand("vault", f"View your {WISH_SYMBOL} balance"),
-            BotCommand("balance", f"View your {WISH_SYMBOL} balance"),
-            BotCommand("dice", f"Earn extra {WISH_SYMBOL} (4 times/day)"),
-            BotCommand("daily", "Claim daily reward"),
-            BotCommand("buy", "Purchase Wishes with Telegram Stars"),
-            BotCommand("transfer", f"Transfer {WISH_SYMBOL} by username"),
-            BotCommand("transferid", f"Transfer {WISH_SYMBOL} by user ID"),
-            BotCommand("shop", "Explore the marketplace"),
-            BotCommand("market", "View P2P marketplace"),
-            BotCommand("mysales", "View your sales"),
-            BotCommand("history", "View transaction history"),
-            BotCommand("cards", "View your card collection"),
-            BotCommand("sell", "Sell items on marketplace"),
-            BotCommand("terms", "View Terms of Service"),
-            BotCommand("support", "Get support help")
-        ]
-        await application.bot.set_my_commands(commands)
-        logger.info("Bot commands menu set up successfully")
-    
-    # Set up post_init to configure commands
-    application.post_init = setup_commands
     
     # Add handlers
     application.add_handler(CommandHandler("start", start))
@@ -764,14 +833,14 @@ def main():
     application.add_handler(CommandHandler("market", market_command))
     application.add_handler(CommandHandler("mysales", mysales_command))
     application.add_handler(CommandHandler("history", history_command))
-    application.add_handler(CommandHandler("grant", grant_command))  # Owner only command
-    application.add_handler(CommandHandler("remove", remove_command))  # Owner only command
-    application.add_handler(CommandHandler("refreshshop", refresh_shop_command))  # Owner only command
+    application.add_handler(CommandHandler("grant", grant_command))
+    application.add_handler(CommandHandler("remove", remove_command))
+    application.add_handler(CommandHandler("refreshshop", refresh_shop_command))
     application.add_handler(CommandHandler("cards", cards_command))
     application.add_handler(CommandHandler("terms", terms_command))
     application.add_handler(CommandHandler("support", support_command))
     
-    # Shop-related handlers (from shop.py)
+    # Shop-related handlers
     application.add_handler(CommandHandler("sell", sell_command))
     
     # Callback handlers
@@ -781,9 +850,20 @@ def main():
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     
-    # Start the bot
-    logger.info("Starting VexaSwitch Store Bot...")
-    application.run_polling()
+    # Initialize bot application
+    asyncio.run(application.initialize())
+    asyncio.run(setup_commands())
+    asyncio.run(setup_webhook())
+    
+    logger.info(f"VexaSwitch Store Bot initialized and ready on port {PORT}")
+    print(f"\n✅ Bot is running on http://0.0.0.0:{PORT}")
+    print(f"📊 Health check: http://0.0.0.0:{PORT}/")
+    print(f"📈 Stats: http://0.0.0.0:{PORT}/stats")
+    print(f"🔗 Webhook: {WEBHOOK_URL}")
 
 if __name__ == '__main__':
-    main()
+    # Initialize the bot
+    initialize_bot()
+    
+    # Run Flask app
+    app.run(host='0.0.0.0', port=PORT, debug=False)

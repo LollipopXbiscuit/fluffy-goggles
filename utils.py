@@ -606,3 +606,27 @@ def get_rarity_color_text(rarity):
         "COMMON": "⚪ <b>STANDARD GRADE</b> ⚪"
     }
     return rarity_styles.get(rarity, "⭐ <b>SPECIAL CARD</b> ⭐")
+
+def increment_message_count():
+    """Increment global message count to track bot activity"""
+    if db is None:
+        print("Database not connected - cannot track message count")
+        return 0
+    
+    stats_collection = db.bot_stats
+    result = stats_collection.find_one_and_update(
+        {"_id": "global_stats"},
+        {"$inc": {"message_count": 1}, "$set": {"last_message_time": datetime.utcnow()}},
+        upsert=True,
+        return_document=True
+    )
+    return result.get("message_count", 0) if result else 0
+
+def get_message_count():
+    """Get total message count"""
+    if db is None:
+        return 0
+    
+    stats_collection = db.bot_stats
+    stats = stats_collection.find_one({"_id": "global_stats"})
+    return stats.get("message_count", 0) if stats else 0
