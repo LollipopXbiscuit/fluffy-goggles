@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from utils import *
 from shop import *
 import asyncio
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -45,6 +46,11 @@ app = Flask(__name__)
 
 # Create telegram application
 application = Application.builder().token(BOT_TOKEN).updater(None).build()
+
+# Global event loop for async operations
+bot_loop = None
+bot_thread = None
+bot_ready = threading.Event()  # Readiness flag for synchronization
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
@@ -388,7 +394,7 @@ Terms may be updated at any time. Continued use constitutes acceptance of new te
 **8. Contact**
 For questions or disputes, use /support command.
 
-*Last updated: {datetime.utcnow().strftime("%B %Y")}*
+*Last updated: {datetime.now().strftime("%B %Y")}*
 *By using this bot, you agree to these terms.*
     """
     await update.message.reply_text(terms_text)
@@ -711,12 +717,13 @@ Thank you for your purchase! 🎉
 @app.route('/')
 def health_check():
     """Health check endpoint for Render"""
+    from datetime import datetime as dt, timezone
     message_count = get_message_count()
     return {
         'status': 'ok',
         'bot': 'VexaSwitch Store Bot',
         'message_count': message_count,
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': dt.now(timezone.utc).isoformat()
     }
 
 @app.route('/stats')
@@ -732,6 +739,11 @@ def stats():
 def webhook():
     """Handle incoming webhook updates from Telegram"""
     try:
+        # Check if bot is ready
+        if not bot_ready.is_set():
+            logger.warning("Bot not ready yet, rejecting webhook update")
+            return Response(status=503)  # Service Unavailable
+        
         # Increment message count to track activity
         increment_message_count()
         
@@ -739,14 +751,23 @@ def webhook():
         update_data = request.get_json(force=True)
         update = Update.de_json(update_data, application.bot)
         
-        # Process update in asyncio event loop
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(application.process_update(update))
-        finally:
-            loop.close()
+        # Process update using the bot's event loop
+        if bot_loop and bot_loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(
+                application.process_update(update),
+                bot_loop
+            )
+            # Optional: monitor for exceptions
+            try:
+                from concurrent.futures import TimeoutError as FutureTimeoutError
+                future.result(timeout=0.1)  # Quick check
+            except FutureTimeoutError:
+                pass  # Normal - update is being processed asynchronously
+            except Exception as process_error:
+                logger.error(f"Error processing update: {process_error}")
+        else:
+            logger.warning("Bot loop not running, cannot process update")
+            return Response(status=503)
         
         return Response(status=200)
     except Exception as e:
@@ -797,8 +818,43 @@ async def setup_commands():
     await application.bot.set_my_commands(commands)
     logger.info("Bot commands menu set up successfully")
 
+def run_bot_loop():
+    """Run the bot's asyncio event loop in a separate thread"""
+    global bot_loop
+    bot_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(bot_loop)
+    
+    try:
+        # Initialize the application
+        bot_loop.run_until_complete(application.initialize())
+        bot_loop.run_until_complete(application.start())
+        bot_loop.run_until_complete(setup_commands())
+        bot_loop.run_until_complete(setup_webhook())
+        
+        # Signal that the bot is ready
+        bot_ready.set()
+        logger.info("Bot event loop initialized and running")
+        
+        # Keep the loop running
+        bot_loop.run_forever()
+    except Exception as e:
+        logger.error(f"Critical error in bot loop: {e}")
+        # Signal failure so the app can handle it
+        bot_ready.set()
+        raise
+    finally:
+        # Graceful shutdown
+        try:
+            bot_loop.run_until_complete(application.stop())
+            bot_loop.run_until_complete(application.shutdown())
+        except Exception as shutdown_error:
+            logger.error(f"Error during shutdown: {shutdown_error}")
+        bot_loop.close()
+
 def initialize_bot():
     """Initialize bot handlers and webhook"""
+    global bot_thread
+    
     # Check if running in demo mode
     if BOT_TOKEN.startswith("demo_mode"):
         logger.info("\n=== VexaSwitch Store Bot Demo Mode ===")
@@ -856,21 +912,25 @@ def initialize_bot():
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
     
-    # Initialize bot application using a new event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(application.initialize())
-        loop.run_until_complete(setup_commands())
-        loop.run_until_complete(setup_webhook())
-    finally:
-        loop.close()
+    # Start bot loop in separate thread
+    bot_thread = threading.Thread(target=run_bot_loop, daemon=True)
+    bot_thread.start()
     
-    logger.info(f"VexaSwitch Store Bot initialized and ready on port {PORT}")
-    print(f"\n✅ Bot is running on http://0.0.0.0:{PORT}")
-    print(f"📊 Health check: http://0.0.0.0:{PORT}/")
-    print(f"📈 Stats: http://0.0.0.0:{PORT}/stats")
-    print(f"🔗 Webhook: {WEBHOOK_URL}")
+    # Wait for bot to be ready (with timeout)
+    logger.info("Waiting for bot to initialize...")
+    if bot_ready.wait(timeout=30):
+        if bot_loop and bot_loop.is_running():
+            logger.info(f"VexaSwitch Store Bot initialized and ready on port {PORT}")
+            print(f"\n✅ Bot is running on http://0.0.0.0:{PORT}")
+            print(f"📊 Health check: http://0.0.0.0:{PORT}/")
+            print(f"📈 Stats: http://0.0.0.0:{PORT}/stats")
+            print(f"🔗 Webhook: {WEBHOOK_URL}")
+        else:
+            logger.error("Bot initialization failed - loop not running")
+            raise RuntimeError("Bot failed to start properly")
+    else:
+        logger.error("Bot initialization timeout (30 seconds)")
+        raise RuntimeError("Bot initialization timeout")
 
 if __name__ == '__main__':
     # Initialize the bot
