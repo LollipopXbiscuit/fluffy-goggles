@@ -2,6 +2,8 @@
 
 WishBot is a comprehensive Telegram bot featuring a custom currency system called "Wish" (𝓒) with integrated marketplace functionality. Users can earn, transfer, and spend wishes on waifu cards through both a daily shop and peer-to-peer marketplace. The bot includes Telegram Stars integration for purchasing wishes and connects to MongoDB for persistent data storage.
 
+**Deployment:** Configured for 24/7 operation on Render with webhook support and message counting system to prevent service sleep.
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -12,6 +14,9 @@ Preferred communication style: Simple, everyday language.
 - **python-telegram-bot v22**: Modern async bot framework with comprehensive Telegram API support
 - **Event-driven architecture**: Command handlers, callback query handlers, and payment handlers
 - **Modular structure**: Separated into main.py, utils.py, and shop.py for maintainability
+- **Webhook mode**: Uses Telegram webhooks instead of polling for production deployment
+- **Async event loop**: Background thread running asyncio loop for proper webhook handling
+- **Thread safety**: Proper synchronization between Flask and bot event loop using threading.Event
 
 ## Database Layer
 - **MongoDB**: Cloud database integration using user's MONGODB_URL secret
@@ -37,10 +42,18 @@ Preferred communication style: Simple, everyday language.
 - **Listing controls**: Create, view, and manage marketplace listings
 
 ## Security & Configuration
-- **Environment secrets**: Secure BOT_TOKEN and OWNER_ID management via Replit Secrets
+- **Environment secrets**: Secure BOT_TOKEN, MONGODB_URL, WEBHOOK_URL, and OWNER_ID management
 - **Log sanitization**: Suppressed httpx logs to prevent token exposure
 - **Owner privileges**: Admin commands restricted to configured owner ID
 - **Input validation**: Comprehensive parameter validation and error handling
+
+## Deployment & Monitoring
+- **Message counting system**: Tracks all processed messages in MongoDB to demonstrate bot activity
+- **Health check endpoint**: `/` endpoint returns bot status, message count, and timestamp
+- **Stats endpoint**: `/stats` endpoint shows real-time message processing statistics
+- **Webhook endpoint**: `/webhook` receives and processes Telegram updates
+- **Readiness synchronization**: Ensures bot is fully initialized before accepting webhook traffic
+- **Graceful shutdown**: Proper cleanup of asyncio resources and bot connections
 
 # External Dependencies
 
@@ -60,5 +73,15 @@ Preferred communication style: Simple, everyday language.
 - **sqlite3**: Built-in Python SQLite interface for local database operations
 
 ## Environment Configuration
-- **TOKEN**: Telegram Bot API token for authentication and bot identification
-- **DATABASE**: SQLite database file path for payment storage and retrieval
+- **BOT_TOKEN**: Telegram Bot API token for authentication and bot identification
+- **MONGODB_URL**: MongoDB connection string for persistent data storage
+- **WEBHOOK_URL**: Public URL for receiving Telegram webhook updates (e.g., https://your-app.onrender.com/webhook)
+- **OWNER_ID**: Telegram user ID for admin access to privileged commands
+- **PORT**: Server port (automatically set by Render)
+
+## Render Deployment Files
+- **render.yaml**: Blueprint configuration for automated Render deployment
+- **Procfile**: Alternative deployment configuration with gunicorn settings
+- **requirements.txt**: Python dependencies (cleaned and optimized)
+- **.gitignore**: Comprehensive exclusion of sensitive and temporary files
+- **RENDER_DEPLOYMENT.md**: Complete step-by-step deployment guide
